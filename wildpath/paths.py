@@ -2,6 +2,7 @@ from collections import Mapping, Sequence, MutableMapping, MutableSequence
 from fnmatch import fnmatchcase
 from itertools import imap
 
+_marker = object()
 
 class BasePath(list):
     """
@@ -25,7 +26,15 @@ class BasePath(list):
     def __getslice__(self, i, j):
         return self.__getitem__(slice(i, j))
 
-    def get_in(self, obj):
+    def get_in(self, obj, default=_marker):
+        try:
+            return self._get_in(obj)
+        except (IndexError, KeyError, AttributeError):
+            if default is _marker:
+                raise
+            return default
+
+    def _get_in(self, obj):
         raise NotImplementedError
 
     def set_in(self, obj, value):
@@ -35,14 +44,14 @@ class BasePath(list):
         raise NotImplementedError
 
     def pop_in(self, obj):
-        result = self.get_in(obj)
+        result = self._get_in(obj)
         self.del_in(obj)
         return result
 
     def has_in(self, obj):
         """checks presence of item at path 'self' from the 'obj'"""
         try:
-            self.get_in(obj)
+            self._get_in(obj)
         except (KeyError, IndexError, AttributeError):
             return False
         return True
@@ -56,7 +65,7 @@ class BasePath(list):
 
 class Path(BasePath):
 
-    def get_in(self, obj):
+    def _get_in(self, obj):
         """returns item at path 'self' from the 'obj'"""
         for key in self:
             if isinstance(obj, Mapping):
@@ -69,7 +78,7 @@ class Path(BasePath):
 
     def set_in(self, obj, value):
         """sets item at path 'self' from the 'obj' to 'value'"""
-        obj = self[:-1].get_in(obj)
+        obj = self[:-1]._get_in(obj)
         if isinstance(obj, MutableMapping):
             obj[self[-1]] = value
         elif isinstance(obj, MutableSequence):
@@ -79,7 +88,7 @@ class Path(BasePath):
 
     def del_in(self, obj):
         """deletes item at path 'self' from the 'obj'"""
-        obj = self[:-1].get_in(obj)
+        obj = self[:-1]._get_in(obj)
         if isinstance(obj, MutableMapping):
             del obj[self[-1]]
         elif isinstance(obj, MutableSequence):
@@ -92,18 +101,41 @@ def parse_slice(key, parse_item=lambda v: int(v) if v else None):
     return slice(*map(parse_item, key.split(':')))
 
 
+def parse_slice_star(key, parse_item=lambda v: int(v) if v else None):
+    if key == "*":
+        return slice(None)
+    try:
+        return slice(*map(parse_item, key.split(':')))
+    except (ValueError, TypeError) as e:
+        raise IndexError("sequence index wildcard can only be '*' or slice (e.g. 1:3)")
+
+
 def match_key(k, wild_key, sep='|'):
     return any(fnmatchcase(k, key) for key in wild_key.split(sep))
 
 
+def _get_with_key(value, k):
+    try:
+        return value.__getitem__(k)
+    except AttributeError:
+        return value
+
+
+def _get_with_slice(value, s, obj):
+    if isinstance(value, Sequence):
+        return value
+    else:
+        return [value for _ in obj[s]]
+
+
 class WildPath(BasePath):
     """
-    Adds wildcards, multiple keys and slicing to Path. e.g WildPath("items.*.start|end.time*.:2).get_in(some_obj):
+    Adds wildcards, multiple keys and slicing to Path. e.g WildPath("items.*.start|end.time*.:2)._get_in(some_obj):
     - WildPath(
     """
     sep = "."
 
-    def get_in(self, obj, parse_slice=parse_slice):
+    def _get_in(self, obj):
         """returns item at path 'self' from the 'obj'"""
         if not len(self):
             return obj
@@ -111,23 +143,18 @@ class WildPath(BasePath):
         if '*' in key or '?' in key or ':' in key or "|" in key:
             tail = self[1:]
             if isinstance(obj, Mapping):
-                return obj.__class__((k, tail.get_in(v)) for k, v in obj.iteritems() if match_key(k, key))
+                return obj.__class__((k, tail._get_in(v)) for k, v in obj.iteritems() if match_key(k, key))
             elif isinstance(obj, Sequence):
-                if key == "*":
-                    return obj.__class__(map(tail.get_in, obj))
-                try:
-                    return obj.__class__(map(tail.get_in, obj[parse_slice(key)]))
-                except (ValueError, TypeError) as e:
-                    raise IndexError("sequence index wildcard can only be '*' or slice (e.g. 1:3)")
+                return obj.__class__(map(tail._get_in, obj[parse_slice_star(key)]))
             else:
-                return {k: tail.get_in(v) for k, v in obj.__dict__.iteritems() if match_key(k, key)}
+                return {k: tail._get_in(v) for k, v in obj.__dict__.iteritems() if match_key(k, key)}
         else:
             if isinstance(obj, Mapping):
-                return self[1:].get_in(obj[key])
+                return self[1:]._get_in(obj[key])
             elif isinstance(obj, Sequence):
-                return self[1:].get_in(obj[int(key)])
+                return self[1:]._get_in(obj[int(key)])
             else:
-                return self[1:].get_in(getattr(obj, key))
+                return self[1:]._get_in(getattr(obj, key))
 
     def set_in(self, obj, value):
         """sets item(s) at path 'self' from the 'obj' to 'value'"""
@@ -135,31 +162,21 @@ class WildPath(BasePath):
         if '*' in key or '?' in key or ':' in key or "|" in key:
             if len(self) == 1:
                 if isinstance(obj, MutableMapping):
-                    [obj.__setitem__(k, value[k]) for k in obj if match_key(k, key)]
+                    [obj.__setitem__(k, _get_with_key(value, k)) for k in obj if match_key(k, key)]
                 elif isinstance(obj, MutableSequence):
-                    if key == '*':
-                        obj[:] = value
-                    else:
-                        try:
-                            obj[parse_slice(key)] = value
-                        except (ValueError, TypeError) as e:
-                            raise IndexError("sequence index wildcard can only be '*' or slice (e.g. 1:3)")
+                    slice_ = parse_slice_star(key)
+                    obj[slice_] = _get_with_slice(value, slice_, obj)
                 else:
-                    [setattr(obj, k, value[k]) for k in obj.__dict__ if match_key(k, key)]
+                    [setattr(obj, k, _get_with_key(value, k)) for k in obj.__dict__ if match_key(k, key)]
             else:
                 tail = self[1:]
                 if isinstance(obj, MutableMapping):
-                    map(tail.set_in, *zip(*((v, value[k]) for k, v in obj.iteritems() if match_key(k, key))))
+                    map(tail.set_in, *zip(*((v, _get_with_key(value, k)) for k, v in obj.iteritems() if match_key(k, key))))
                 elif isinstance(obj, MutableSequence):
-                    if key == '*':
-                        map(tail.set_in, obj, value)
-                    else:
-                        try:
-                            map(tail.set_in, obj[parse_slice(key)], value)
-                        except (ValueError, TypeError) as e:
-                            raise IndexError("sequence index wildcard can only be '*' or slice (e.g. 1:3)")
+                    slice_ = parse_slice_star(key)
+                    map(tail.set_in, obj[slice_], _get_with_slice(value, slice_, obj))
                 else:
-                    map(tail.set_in, *zip(*((v, value[k]) for k, v in obj.__dict__.iteritems() if match_key(k, key))))
+                    map(tail.set_in, *zip(*((v, _get_with_key(value, k)) for k, v in obj.__dict__.iteritems() if match_key(k, key))))
         else:
             if len(self) == 1:
                 if isinstance(obj, MutableMapping):
@@ -184,13 +201,7 @@ class WildPath(BasePath):
                 if isinstance(obj, MutableMapping):
                     [obj.__delitem__(k) for k in obj.keys() if match_key(k, key)]
                 elif isinstance(obj, MutableSequence):
-                    if key == '*':
-                        del obj[:]
-                    else:
-                        try:
-                            del obj[parse_slice(key)]
-                        except (ValueError, TypeError) as e:
-                            raise IndexError("sequence index wildcard can only be '*' or slice (e.g. 1:3)")
+                    del obj[parse_slice_star(key)]
                 else:
                     [delattr(obj, k) for k in obj.__dict__.keys() if match_key(k, key)]
             else:
@@ -198,13 +209,7 @@ class WildPath(BasePath):
                 if isinstance(obj, MutableMapping):
                     map(tail.del_in, (v for k, v in obj.iteritems() if match_key(k, key)))
                 elif isinstance(obj, MutableSequence):
-                    if key == '*':
-                        map(tail.del_in, obj)
-                    else:
-                        try:
-                            map(tail.del_in, obj[parse_slice(key)])
-                        except (ValueError, TypeError) as e:
-                            raise IndexError("sequence index wildcard can only be '*' or slice (e.g. 1:3)")
+                    map(tail.del_in, obj[parse_slice_star(key)])
                 else:
                     map(tail.del_in, (v for k, v in obj.__dict__.iteritems() if match_key(k, key)))
         else:

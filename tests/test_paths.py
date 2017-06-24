@@ -1,3 +1,4 @@
+import json
 import unittest
 
 from copy import deepcopy
@@ -10,6 +11,7 @@ class Object(object):
     def __init__(self, **kwargs):
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
+
 
 class TestPath(unittest.TestCase):
 
@@ -125,6 +127,13 @@ class TestWildPath(unittest.TestCase):
         gg=[dict(a=1, b=2), dict(b=3, c=4), dict(a=5, b=6, c=7)]
     )
 
+    def test_pop(self):
+        for path_string in ["b*", "ca|cb", "ca.d", "gg.*.b", "ff.*", "ff.:", "*", "ff.::2", "ff.-1:0:-2"]:
+            obj = deepcopy(self.complex)
+            path = WildPath(path_string)
+            get = path.get_in(obj)
+            self.assertEqual(path.pop_in(obj), get)
+
     def test_slice(self):
         path = WildPath("1.a.2.b.3.c")
         self.assertEqual(type(path[-1:0:-2]), WildPath)
@@ -185,6 +194,26 @@ class TestWildPath(unittest.TestCase):
         p = WildPath("d.e")
         p.set_in(s, 11)
         self.assertEqual(p.get_in(s), 11)
+        s = deepcopy(self.simple)
+        p = WildPath("e.*.b")
+        p.set_in(s, [11,12])
+        self.assertEqual(p.get_in(s), [11,12])
+
+    def test_constant_set(self):
+        s = deepcopy(self.simple)
+        p = WildPath("e.*.b")
+        p.set_in(s, 13)
+        self.assertEqual(p.get_in(s), [13,13])
+
+        s = deepcopy(self.simple)
+        p = WildPath("e.*.*")
+        p.set_in(s, 13)
+        self.assertEqual(p.get_in(s), [{'a': 13, 'b': 13}, {'c': 13, 'b': 13}])
+
+        s = deepcopy(self.simple)
+        p = WildPath("e.*")
+        p.set_in(s, 13)
+        self.assertEqual(p.get_in(s), [13, 13])
 
     def test_longer_del(self):
         s = deepcopy(self.simple)
@@ -213,7 +242,6 @@ class TestWildPath(unittest.TestCase):
         s = deepcopy(self.complex)
         WildPath("ff.0:3").del_in(s)
         self.assertEqual(s.ff, [4,5,6])
-
 
     def test_wild_or(self):
         s = deepcopy(self.complex)
@@ -278,6 +306,7 @@ class TestWildPath(unittest.TestCase):
             Path("e.2.a").get_in(s)
         with self.assertRaises(AttributeError):
             Path("f.3").get_in(s)
+
 
 class TestOther(unittest.TestCase):
 
