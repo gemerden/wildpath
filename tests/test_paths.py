@@ -9,19 +9,33 @@ from wildpath.paths import Path, WildPath, parse_slice
 class Object(object):
 
     def __init__(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)
 
 
-class TestPath(unittest.TestCase):
+class TestBase(unittest.TestCase):
 
-    simple = Object(
-        a = 1,
-        b = [2,3],
-        c = dict(d=4,e=5),
-        d = Object(e=6),
-        e = [dict(a=7, b=8), dict(b=9, c=0)]
-    )
+    def setUp(self):
+        self.simple = Object(
+            a=1,
+            b=[2, 3],
+            c=dict(d=4, e=5),
+            d=Object(e=6),
+            e=[dict(a=7, b=8),
+               dict(b=9, c=0)]
+        )
+        self.complex = Object(
+            aa=1,
+            ba=[2, 3],
+            bb=[4, 5],
+            ca=dict(d=6, e=7, f=8),
+            cb=Object(e=9),
+            ff=[1,2,3,4,5,6],
+            gg=[dict(a=1, b=2), dict(b=3, c=4), dict(a=5, b=6, c=7)]
+        )
+
+
+class TestPath(TestBase):
 
     def test_slice(self):
         path = Path("1.a.2.b.3.c")
@@ -29,6 +43,9 @@ class TestPath(unittest.TestCase):
         self.assertEqual(path[::2], Path("1.2.3"))
         self.assertEqual(path[1:-1], Path("a.2.b.3"))
         self.assertEqual(path[-1:0:-2], Path("c.b.a"))
+
+    def test_some_basics(self):
+        path = Path('')
 
     def test_basic_get(self):
         p1 = Path("a")
@@ -107,25 +124,26 @@ class TestPath(unittest.TestCase):
         with self.assertRaises(AttributeError):
             Path("f.3").get_in(s)
 
+class TestIterators(TestBase):
 
-class TestWildPath(unittest.TestCase):
-    simple = Object(
-        a=1,
-        b=[2, 3],
-        c=dict(d=4, e=5),
-        d=Object(e=6),
-        e=[dict(a=7, b=8), dict(b=9, c=0)],
-    )
+    def test_iteritems_all(self):
+        paths = [path for path in Path.items(self.simple, all=True)]
+        self.assertEqual(len(paths), 16)
 
-    complex = Object(
-        aa=1,
-        ba=[2, 3],
-        bb=[4, 5],
-        ca=dict(d=6, e=7, f=8),
-        cb=Object(e=9),
-        ff=[1,2,3,4,5,6],
-        gg=[dict(a=1, b=2), dict(b=3, c=4), dict(a=5, b=6, c=7)]
-    )
+        new = {}
+        for path, value in Path.items(self.simple, all=True):
+            path.set_in(new, value)
+
+        for path in Path.paths(new):
+            self.assertEqual(path.get_in(self.simple), path.get_in(new))
+
+    def test_iteritems(self):
+        items = [path for path in Path.items(self.simple, all=False)]
+        self.assertTrue(all(isinstance(item, tuple) for item in items))
+        self.assertEqual(len(items), 10)
+
+
+class TestWildPath(TestBase):
 
     def test_pop(self):
         for path_string in ["b*", "ca|cb", "ca.d", "gg.*.b", "ff.*", "ff.:", "*", "ff.::2", "ff.-1:0:-2"]:
@@ -311,10 +329,16 @@ class TestWildPath(unittest.TestCase):
 class TestOther(unittest.TestCase):
 
     def test_parse_slice(self):
+        s = parse_slice("0:1")
+        self.assertEqual((s.start, s.stop, s.step), (0,1,None))
+        s = parse_slice(":1")
+        self.assertEqual((s.start, s.stop, s.step), (None,1,None))
         s = parse_slice("0:1:2")
         self.assertEqual((s.start, s.stop, s.step), (0,1,2))
         s = parse_slice(":1:2")
         self.assertEqual((s.start, s.stop, s.step), (None,1,2))
+        s = parse_slice("::2")
+        self.assertEqual((s.start, s.stop, s.step), (None,None,2))
         s = parse_slice(":")
         self.assertEqual((s.start, s.stop, s.step), (None,None,None))
 
