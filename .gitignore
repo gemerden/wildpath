@@ -141,4 +141,5 @@ $RECYCLE.BIN/
 # extra
 *.idea
 *.html
+*\samples
 mini.py
