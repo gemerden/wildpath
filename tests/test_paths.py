@@ -433,6 +433,7 @@ class TestDocs(TestBase):
             wildpath = WildPath("items.-1::-1.name")
             assert wildpath.get_in(agenda) == ["closing", "progress", "opening"]
         except Exception as e:
+            raise
             self.fail(e.message)
 
     def test_iterator_examples(self):
