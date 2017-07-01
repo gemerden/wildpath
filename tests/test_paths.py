@@ -3,7 +3,8 @@ import unittest
 
 from copy import deepcopy
 
-from wildpath.paths import Path, WildPath, parse_slice
+from samples.simple import agenda
+from wildpath.paths import Path, WildPath, parse_slice, _iter_keys, _iter_indices
 
 
 class Object(object):
@@ -11,6 +12,12 @@ class Object(object):
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    def __eq__(self, other):
+        return self.__class__ == other.__class__ and self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        return not self == other
 
 
 class TestBase(unittest.TestCase):
@@ -33,6 +40,8 @@ class TestBase(unittest.TestCase):
             ff=[1,2,3,4,5,6],
             gg=[dict(a=1, b=2), dict(b=3, c=4), dict(a=5, b=6, c=7)]
         )
+
+        self.agenda = agenda
 
 
 class TestPath(TestBase):
@@ -141,6 +150,21 @@ class TestIterators(TestBase):
         items = [path for path in Path.items(self.simple, all=False)]
         self.assertTrue(all(isinstance(item, tuple) for item in items))
         self.assertEqual(len(items), 10)
+
+    def test_iteritems_copy(self):
+        paths = [path for path in Path.items(self.simple, all=True)]
+        self.assertEqual(len(paths), 16)
+
+        simple = deepcopy(self.simple)
+        new = {}
+        for path, value in Path.items(simple, all=True):
+            if isinstance(value, int):
+                value = str(value)
+            path.set_in(new, value)
+
+        self.assertEqual(simple, self.simple)
+
+
 
 
 class TestWildPath(TestBase):
@@ -266,6 +290,11 @@ class TestWildPath(TestBase):
         self.assertEqual(WildPath("aa|ba").get_in(s), {"aa": 1, "ba": [2, 3]})
         self.assertEqual(WildPath("ca.d|e").get_in(s), {"d": 6, "e": 7})
 
+        agenda = deepcopy(self.agenda)
+
+        result = WildPath("items.*.name|subjects").get_in(agenda)
+        self.assertTrue(len(r) == 2 for r in result)
+
     def test_wild_get(self):
         s = deepcopy(self.complex)
         self.assertEqual(WildPath("bb.*").get_in(s), [4, 5])
@@ -325,6 +354,108 @@ class TestWildPath(TestBase):
         with self.assertRaises(AttributeError):
             Path("f.3").get_in(s)
 
+    def test_string_like_values(self):
+        items = list(Path.items(self.agenda))
+        self.assertTrue(all(len(item[0]) <= 4 for item in items))  # strings are not entered/iterated over characters
+        path = WildPath("meeting")
+        try:
+            path.set_in(agenda, "some other name")  # value is not seen as a Sequence
+        except Exception as e:
+            self.fail(e.message)
+
+class TestDocs(TestBase):
+
+    def test_path_example(self):
+        agenda = deepcopy(self.agenda)
+        try:
+            from wildpath.paths import Path
+
+            path = Path("items.0.duration")
+            assert str(path) == "items.0.duration"  # str(..) returns the original path string
+
+            duration = path.get_in(agenda)  # retrieves value at path location
+            assert duration == "5 minutes"
+
+            path.set_in(agenda, "10 minutes")  # sets value at path location
+            assert path.get_in(agenda) == "10 minutes"
+
+            path.del_in(agenda)  # deletes key-value at path loation
+            assert path.has_in(agenda) == False  # has_in checks the presenca of a value at the path location
+        except Exception as e:
+            self.fail(e.message)
+
+    def test_wild_path_example(self):
+        agenda = deepcopy(self.agenda)
+        try:
+            from wildpath.paths import WildPath
+
+            wildpath = WildPath("items.*.duration")
+
+            durations = wildpath.get_in(agenda)  # retrieves all the durations of the items on the agenda
+            assert durations == ["5 minutes", "25 minutes", "5 minutes"]
+
+            wildpath.set_in(agenda, ["10 minutes", "50 minutes", "10 minutes"])  # setting all the values,
+            assert wildpath.get_in(agenda) == ["10 minutes", "50 minutes", "10 minutes"]
+
+            wildpath.set_in(agenda, "30 minutes")  # or replacing all with a single value,
+            assert wildpath.get_in(agenda) == ["30 minutes", "30 minutes", "30 minutes"]
+
+            wildpath.del_in(agenda)  # delete all the items at wildpath from the structure
+            assert wildpath.has_in(agenda) == False  # `has_in` checks if all the items at wildpath are there
+
+            # To get the start and end time of the meeting:
+
+            wildpath = WildPath("*_time")
+            assert wildpath.get_in(agenda) == {"start_time": "10:00", "end_time": "11:00"}
+
+            #  WildPath supports a number of wildcard(-like) constructs
+
+            # '|' lets you select multiple keys
+
+            wildpath = WildPath("start_time|end_time")
+            assert wildpath.get_in(agenda) == {"start_time": "10:00", "end_time": "11:00"}
+
+            # '?' stands for a single character
+            assert WildPath("item?").get_in({"item1": "chair", "item2": "table", "count": 2}) == {"item1": "chair",
+                                                                                                  "item2": "table"}
+
+            # '!' at the start of a key definition in a wildpath:
+            assert WildPath("!item?").get_in({"item1": "chair", "item2": "table", "count": 2}) == {"count": 2}
+
+            wildpath = WildPath("start_time|end_time")
+            assert wildpath.get_in(agenda) == {"start_time": "10:00", "end_time": "11:00"}
+
+            # similarly it supports slices as wildcard like path=elements
+
+            wildpath = WildPath("items.:2.name")  #  takes the names of the first 2 items
+            assert wildpath.get_in(agenda) == ["opening", "progress"]
+
+            wildpath = WildPath("items.-1::-1.name")
+            assert wildpath.get_in(agenda) == ["closing", "progress", "opening"]
+        except Exception as e:
+            self.fail(e.message)
+
+    def test_iterator_examples(self):
+        agenda = deepcopy(self.agenda)
+        try:
+            from wildpath.paths import Path
+
+            for path, value in sorted(Path.items(agenda)):
+                print(" ".join([str(path), ":", value]))
+            for path, value in sorted(Path.items(agenda, all=True)):
+                print(" ".join([str(path), ":", str(value)]))
+
+            new_dict = {}
+
+            for path, value in Path.items(agenda, all=True):
+                path.set_in(new_dict, value)
+
+            assert new_dict == agenda
+
+            print repr(Path("a.b.c"))
+        except Exception as e:
+            self.fail(e.message)
+
 
 class TestOther(unittest.TestCase):
 
@@ -341,6 +472,32 @@ class TestOther(unittest.TestCase):
         self.assertEqual((s.start, s.stop, s.step), (None,None,2))
         s = parse_slice(":")
         self.assertEqual((s.start, s.stop, s.step), (None,None,None))
+
+    def test_iter_keys(self):
+        self.assertEqual(list(_iter_keys("*", ("aa", "ab", "bb"))),
+                         ["aa", "ab", "bb"])
+        self.assertEqual(list(_iter_keys("?b", ("aa", "ab", "bb"))),
+                         ["ab", "bb"])
+        self.assertEqual(list(_iter_keys("*b", ("aa", "ab", "bb"))),
+                         ["ab", "bb"])
+        self.assertEqual(list(_iter_keys("!?b", ("aa", "ab", "bb"))),
+                         ["aa"])
+        self.assertEqual(list(_iter_keys("!aa|bb", ("aa", "ab", "bb"))),
+                         ["ab"])
+
+    def test_iter_indices(self):
+        self.assertEqual(list(_iter_indices(":", 5)),
+                         [0, 1, 2, 3, 4])
+        self.assertEqual(list(_iter_indices(":2", 5)),
+                         [0, 1])
+        self.assertEqual(list(_iter_indices("!:2", 5)),
+                         [2, 3, 4])
+        self.assertEqual(list(_iter_indices("-1::-1", 5)),
+                         [4, 3, 2, 1, 0])
+        self.assertEqual(list(_iter_indices("!::2", 5)),
+                         [1, 3])
+        self.assertEqual(list(_iter_indices("!::-2", 5)),
+                         [3, 1])
 
 
 

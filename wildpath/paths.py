@@ -1,4 +1,5 @@
 import sys
+from copy import deepcopy, copy
 
 from fnmatch import fnmatchcase
 from itertools import starmap
@@ -22,13 +23,14 @@ class BasePath(list):
     """
     sep = "."
 
+
     @classmethod
     def items(cls, obj, all=False, _path=None):
         """ iterates over all (wildpath, value) items in the (nested) object """
         if _path is None:
             _path = cls()
         elif all:
-            yield _path, obj
+            yield _path, copy(obj)
         if isinstance(obj, value_sequence_types):
             if not all:
                 yield _path, obj
@@ -146,23 +148,49 @@ class Path(BasePath):
             delattr(obj, self[-1])
 
 
-def parse_slice(key, parse_item=lambda v: int(v) if v else None):
-    return slice(*map(parse_item, key.split(':')))
-
-
-def parse_slice_star(key, parse_item=lambda v: int(v) if v else None):
-    if key == "*":
-        return slice(None)
+def parse_slice(wild_slice, parse_item=lambda v: int(v) if v else None):
     try:
-        return slice(*map(parse_item, key.split(':')))
+        return slice(*map(parse_item, wild_slice.split(':')))
     except (ValueError, TypeError) as e:
         raise IndexError("sequence index wildcard can only be '*' or slice (e.g. 1:3)")
 
 
-def match_key(k, wild_key, sep='|', inv='!'):
-    if wild_key[0] == inv:
-        return not any(fnmatchcase(k, key) for key in wild_key[1:].split(sep))
-    return any(fnmatchcase(k, key) for key in wild_key.split(sep))
+def parse_slice_star(wild_slice, parse_item=lambda v: int(v) if v else None):
+    if wild_slice == "*":
+        return slice(None)
+    try:
+        return slice(*map(parse_item, wild_slice.split(':')))
+    except (ValueError, TypeError) as e:
+        raise IndexError("sequence index wildcard can only be '*' or slice (e.g. 1:3)")
+
+def _iter_indices(wild_slice, count):
+    negate = (wild_slice[0] == "!")
+    if negate:
+        wild_slice = wild_slice[1:]
+    if wild_slice == "*":
+        slice_ = slice(None)
+    else:
+        slice_ = parse_slice(wild_slice)
+
+    slice_indices = range(*slice_.indices(count))
+    if negate:
+        if slice_.step and slice_.step < 0:
+            return (i for i in reversed(range(count)) if i not in slice_indices)
+        return (i for i in range(count) if i not in slice_indices)
+    return slice_indices
+
+def match_key(k, wild_key):
+    if wild_key[0] == '!':
+        return not any(fnmatchcase(k, key) for key in wild_key[1:].split('|'))
+    return any(fnmatchcase(k, key) for key in wild_key.split('|'))
+
+
+def _iter_keys(wild_key, keys):
+    if wild_key[0] == '!':
+        wild_keys = wild_key[1:].split('|')
+        return (k for k in keys if not any(fnmatchcase(k, key) for key in wild_keys))
+    wild_keys = wild_key.split('|')
+    return (k for k in keys if any(fnmatchcase(k, key) for key in wild_keys))
 
 
 def _get_with_key(value, k):
@@ -172,11 +200,12 @@ def _get_with_key(value, k):
         return value
 
 
-def _get_with_slice(value, s, obj):
+def _get_with_slice(value, slc, obj):
+    if isinstance(value, value_sequence_types):
+        return [value for _ in range(*slc.indices(len(obj)))]
     if isinstance(value, Sequence):
         return value
-    else:
-        return [value for _ in range(*s.indices(len(obj)))]
+    return [value for _ in range(*slc.indices(len(obj)))]
 
 
 class WildPath(BasePath):
@@ -193,7 +222,7 @@ class WildPath(BasePath):
         key = self[0]
         if '*' in key or '?' in key or ':' in key or "|" in key or '!' in key:
             if isinstance(obj, Mapping):
-                return obj.__class__((k, self[1:]._get_in(v)) for k, v in obj.items() if match_key(k, key))
+                return obj.__class__((k, self[1:]._get_in(obj[k])) for k in _iter_keys(key, obj))
             elif isinstance(obj, Sequence):
                 return obj.__class__(map(self[1:]._get_in, obj[parse_slice_star(key)]))
             else:
