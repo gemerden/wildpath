@@ -4,7 +4,7 @@ import unittest
 from copy import deepcopy
 
 from samples.simple import agenda
-from wildpath.paths import Path, WildPath, parse_slice, _iter_keys, _iter_indices
+from wildpath.paths import Path, WildPath, parse_slice, _get_keys, _get_indices
 
 
 class Object(object):
@@ -69,9 +69,9 @@ class TestPath(TestBase):
         d = dict(a=1)
         l = [0, 1]
         o = Object(a=1)
-        p1.set_in(d, 0)
-        p2.set_in(l, 0)
-        p1.set_in(o, 0)
+        p1._set_in(d, 0)
+        p2._set_in(l, 0)
+        p1._set_in(o, 0)
         self.assertEqual(p1.get_in(d), 0)
         self.assertEqual(p2.get_in(l), 0)
         self.assertEqual(p1.get_in(o), 0)
@@ -82,9 +82,9 @@ class TestPath(TestBase):
         d = dict(a=1)
         l = [0, 1]
         o = Object(a=1)
-        p1.del_in(d)
-        p2.del_in(l)
-        p1.del_in(o)
+        p1._del_in(d)
+        p2._del_in(l)
+        p1._del_in(o)
         self.assertEqual(d, {})
         self.assertEqual(l, [0])
         self.assertEqual(len(o.__dict__), 0)
@@ -103,25 +103,25 @@ class TestPath(TestBase):
     def test_longer_set(self):
         s = deepcopy(self.simple)
         p = Path("b.0")
-        p.set_in(s, 11)
+        p._set_in(s, 11)
         self.assertEqual(p.get_in(s), 11)
         p = Path("c.d")
-        p.set_in(s, 11)
+        p._set_in(s, 11)
         self.assertEqual(p.get_in(s), 11)
         p = Path("d.e")
-        p.set_in(s, 11)
+        p._set_in(s, 11)
         self.assertEqual(p.get_in(s), 11)
 
     def test_longer_del(self):
         s = deepcopy(self.simple)
         p = Path("b.0")
-        p.del_in(s)
+        p._del_in(s)
         self.assertEqual(s.b, [3])
         p = Path("c.d")
-        p.del_in(s)
+        p._del_in(s)
         self.assertEqual(s.c, {"e": 5})
         p = Path("d.e")
-        p.del_in(s)
+        p._del_in(s)
         self.assertEqual(len(s.d.__dict__), 0)
 
     def test_exceptions(self):
@@ -141,7 +141,7 @@ class TestIterators(TestBase):
 
         new = {}
         for path, value in Path.items(self.simple, all=True):
-            path.set_in(new, value)
+            path._set_in(new, value)
 
         for path in Path.paths(new):
             self.assertEqual(path.get_in(self.simple), path.get_in(new))
@@ -160,11 +160,9 @@ class TestIterators(TestBase):
         for path, value in Path.items(simple, all=True):
             if isinstance(value, int):
                 value = str(value)
-            path.set_in(new, value)
+            path._set_in(new, value)
 
         self.assertEqual(simple, self.simple)
-
-
 
 
 class TestWildPath(TestBase):
@@ -196,9 +194,9 @@ class TestWildPath(TestBase):
         d = dict(a=1)
         l = [0, 1]
         o = Object(a=1)
-        p1.set_in(d, 0)
-        p2.set_in(l, 0)
-        p1.set_in(o, 0)
+        p1._set_in(d, 0)
+        p2._set_in(l, 0)
+        p1._set_in(o, 0)
         self.assertEqual(p1.get_in(d), 0)
         self.assertEqual(p2.get_in(l), 0)
         self.assertEqual(p1.get_in(o), 0)
@@ -209,9 +207,9 @@ class TestWildPath(TestBase):
         d = dict(a=1)
         l = [0, 1]
         o = Object(a=1)
-        p1.del_in(d)
-        p2.del_in(l)
-        p1.del_in(o)
+        p1._del_in(d)
+        p2._del_in(l)
+        p1._del_in(o)
         self.assertEqual(d, {})
         self.assertEqual(l, [0])
         self.assertEqual(len(o.__dict__), 0)
@@ -228,45 +226,45 @@ class TestWildPath(TestBase):
     def test_longer_set(self):
         s = deepcopy(self.simple)
         p = WildPath("b.0")
-        p.set_in(s, 11)
+        p._set_in(s, 11)
         self.assertEqual(p.get_in(s), 11)
         p = WildPath("c.d")
-        p.set_in(s, 11)
+        p._set_in(s, 11)
         self.assertEqual(p.get_in(s), 11)
         p = WildPath("d.e")
-        p.set_in(s, 11)
+        p._set_in(s, 11)
         self.assertEqual(p.get_in(s), 11)
         s = deepcopy(self.simple)
         p = WildPath("e.*.b")
-        p.set_in(s, [11,12])
+        p._set_in(s, [11, 12])
         self.assertEqual(p.get_in(s), [11,12])
 
     def test_constant_set(self):
         s = deepcopy(self.simple)
         p = WildPath("e.*.b")
-        p.set_in(s, 13)
+        p._set_in(s, 13)
         self.assertEqual(p.get_in(s), [13,13])
 
         s = deepcopy(self.simple)
         p = WildPath("e.*.*")
-        p.set_in(s, 13)
+        p._set_in(s, 13)
         self.assertEqual(p.get_in(s), [{'a': 13, 'b': 13}, {'c': 13, 'b': 13}])
 
         s = deepcopy(self.simple)
         p = WildPath("e.*")
-        p.set_in(s, 13)
+        p._set_in(s, 13)
         self.assertEqual(p.get_in(s), [13, 13])
 
     def test_longer_del(self):
         s = deepcopy(self.simple)
         p = WildPath("b.0")
-        p.del_in(s)
+        p._del_in(s)
         self.assertEqual(s.b, [3])
         p = WildPath("c.d")
-        p.del_in(s)
+        p._del_in(s)
         self.assertEqual(s.c, {"e": 5})
         p = WildPath("d.e")
-        p.del_in(s)
+        p._del_in(s)
         self.assertEqual(len(s.d.__dict__), 0)
 
     def test_wild_slice(self):
@@ -279,10 +277,10 @@ class TestWildPath(TestBase):
         with self.assertRaises(KeyError):
             self.assertEqual(WildPath("gg.:2.a").get_in(s), [6,4,2])
 
-        WildPath("ff.1:3").set_in(s, [7])
-        self.assertEqual(s.ff, [1,7,4,5,6])
+        WildPath("ff.1:3")._set_in(s, [7, 7])
+        self.assertEqual(s.ff, [1,7, 7,4,5,6])
         s = deepcopy(self.complex)
-        WildPath("ff.0:3").del_in(s)
+        WildPath("ff.0:3")._del_in(s)
         self.assertEqual(s.ff, [4,5,6])
 
     def test_wild_or(self):
@@ -308,16 +306,16 @@ class TestWildPath(TestBase):
         p3 = WildPath("c*.e")
         p4 = WildPath("c*.e*")
         s = deepcopy(self.complex)
-        p1.set_in(s, [14,15])
+        p1._set_in(s, [14, 15])
         self.assertEqual(p1.get_in(s), [14, 15])
         s = deepcopy(self.complex)
-        p2.set_in(s, {'ba': 13, 'bb': 15})
+        p2._set_in(s, {'ba': 13, 'bb': 15})
         self.assertEqual(p2.get_in(s), {'ba': 13, 'bb': 15})
         s = deepcopy(self.complex)
-        p3.set_in(s, {'ca': 17, 'cb': 18})
+        p3._set_in(s, {'ca': 17, 'cb': 18})
         self.assertEqual(p3.get_in(s), {'ca': 17, 'cb': 18})
         s = deepcopy(self.complex)
-        p4.set_in(s, {'ca': {'e': 17}, 'cb': {'e': 18}})
+        p4._set_in(s, {'ca': {'e': 17}, 'cb': {'e': 18}})
         self.assertEqual(p4.get_in(s), {'ca': {'e': 17}, 'cb': {'e': 18}})
 
     def test_wild_del(self):
@@ -327,23 +325,67 @@ class TestWildPath(TestBase):
         p4 = WildPath("c*.e*")
         p5 = WildPath("*")
         s = deepcopy(self.complex)
-        p1.del_in(s)
+        p1._del_in(s)
         self.assertEqual(p1.get_in(s), [])
         s = deepcopy(self.complex)
-        p2.del_in(s)
+        p2._del_in(s)
         self.assertEqual(s.ba, [2])
         self.assertEqual(s.bb, [4])
         s = deepcopy(self.complex)
-        p3.del_in(s)
+        p3._del_in(s)
         self.assertEqual(s.ca, {"d": 6, "f": 8})
         self.assertEqual(s.cb.__dict__, {})
         s = deepcopy(self.complex)
-        p4.del_in(s)
+        p4._del_in(s)
         self.assertEqual(s.ca, {"d": 6, "f": 8})
         self.assertEqual(s.cb.__dict__, {})
         s = deepcopy(self.complex)
-        p5.del_in(s)
+        p5._del_in(s)
         self.assertEqual(s.__dict__, {})
+
+    def test_wild_not_slice(self):
+        L = [0,1,2,3,4,5]
+        path_1 = WildPath("!:")
+        path_2 = WildPath("!::2")
+        path_3 = WildPath("!1:3")
+        path_4 = WildPath("!-1:0:-2")
+        #  get_in
+        self.assertEqual(path_1.get_in(L), [])
+        self.assertEqual(path_2.get_in(L), [1,3,5])
+        self.assertEqual(path_3.get_in(L), [0,3,4,5])
+        self.assertEqual(path_4.get_in(L), [4, 2, 0])
+        #  set_in
+        L = [0, 1, 2, 3, 4, 5]
+        path_1.set_in(L, [1,2,3])
+        self.assertEqual(L, [0, 1, 2, 3, 4, 5])
+
+        L = [0, 1, 2, 3, 4, 5]
+        path_2.set_in(L, [1,2,3])
+        self.assertEqual(L, [0, 1, 2, 2, 4, 3])
+
+        L = [0, 1, 2, 3, 4, 5]
+        path_3.set_in(L, [1,2,3,4])
+        self.assertEqual(L, [1, 1, 2, 2, 3, 4])
+
+        L = [0, 1, 2, 3, 4, 5]
+        path_4.set_in(L, [1,2,3])
+        self.assertEqual(L, [3,1,2,3,1,5])
+        #  del_in
+        L = [0, 1, 2, 3, 4, 5]
+        path_1.del_in(L)
+        self.assertEqual(L, [0, 1, 2, 3, 4, 5])
+
+        L = [0, 1, 2, 3, 4, 5]
+        path_2.del_in(L)
+        self.assertEqual(L, [0, 2, 4])
+
+        L = [0, 1, 2, 3, 4, 5]
+        path_3.del_in(L)
+        self.assertEqual(L, [1, 2])
+
+        L = [0, 1, 2, 3, 4, 5]
+        path_4.del_in(L)
+        self.assertEqual(L, [1,3,5])
 
     def test_exceptions(self):
         s = deepcopy(self.simple)
@@ -359,7 +401,7 @@ class TestWildPath(TestBase):
         self.assertTrue(all(len(item[0]) <= 4 for item in items))  # strings are not entered/iterated over characters
         path = WildPath("meeting")
         try:
-            path.set_in(agenda, "some other name")  # value is not seen as a Sequence
+            path._set_in(agenda, "some other name")  # value is not seen as a Sequence
         except Exception as e:
             self.fail(e.message)
 
@@ -376,13 +418,13 @@ class TestDocs(TestBase):
             duration = path.get_in(agenda)  # retrieves value at path location
             assert duration == "5 minutes"
 
-            path.set_in(agenda, "10 minutes")  # sets value at path location
+            path._set_in(agenda, "10 minutes")  # sets value at path location
             assert path.get_in(agenda) == "10 minutes"
 
-            path.del_in(agenda)  # deletes key-value at path loation
+            path._del_in(agenda)  # deletes key-value at path loation
             assert path.has_in(agenda) == False  # has_in checks the presenca of a value at the path location
         except Exception as e:
-            self.fail(e.message)
+            self.fail(e)
 
     def test_wild_path_example(self):
         agenda = deepcopy(self.agenda)
@@ -394,13 +436,13 @@ class TestDocs(TestBase):
             durations = wildpath.get_in(agenda)  # retrieves all the durations of the items on the agenda
             assert durations == ["5 minutes", "25 minutes", "5 minutes"]
 
-            wildpath.set_in(agenda, ["10 minutes", "50 minutes", "10 minutes"])  # setting all the values,
+            wildpath._set_in(agenda, ["10 minutes", "50 minutes", "10 minutes"])  # setting all the values,
             assert wildpath.get_in(agenda) == ["10 minutes", "50 minutes", "10 minutes"]
 
-            wildpath.set_in(agenda, "30 minutes")  # or replacing all with a single value,
+            wildpath._set_in(agenda, "30 minutes")  # or replacing all with a single value,
             assert wildpath.get_in(agenda) == ["30 minutes", "30 minutes", "30 minutes"]
 
-            wildpath.del_in(agenda)  # delete all the items at wildpath from the structure
+            wildpath._del_in(agenda)  # delete all the items at wildpath from the structure
             assert wildpath.has_in(agenda) == False  # `has_in` checks if all the items at wildpath are there
 
             # To get the start and end time of the meeting:
@@ -433,7 +475,7 @@ class TestDocs(TestBase):
             wildpath = WildPath("items.-1::-1.name")
             assert wildpath.get_in(agenda) == ["closing", "progress", "opening"]
         except Exception as e:
-            self.fail(e.message)
+            self.fail(e)
 
     def test_iterator_examples(self):
         agenda = deepcopy(self.agenda)
@@ -448,13 +490,11 @@ class TestDocs(TestBase):
             new_dict = {}
 
             for path, value in Path.items(agenda, all=True):
-                path.set_in(new_dict, value)
+                path._set_in(new_dict, value)
 
             assert new_dict == agenda
-
-            print repr(Path("a.b.c"))
         except Exception as e:
-            self.fail(e.message)
+            self.fail(e)
 
 
 class TestOther(unittest.TestCase):
@@ -473,30 +513,32 @@ class TestOther(unittest.TestCase):
         s = parse_slice(":")
         self.assertEqual((s.start, s.stop, s.step), (None,None,None))
 
-    def test_iter_keys(self):
-        self.assertEqual(list(_iter_keys("*", ("aa", "ab", "bb"))),
+    def test_get_keys(self):
+        self.assertEqual(list(_get_keys("*", ("aa", "ab", "bb"))),
                          ["aa", "ab", "bb"])
-        self.assertEqual(list(_iter_keys("?b", ("aa", "ab", "bb"))),
+        self.assertEqual(list(_get_keys("?b", ("aa", "ab", "bb"))),
                          ["ab", "bb"])
-        self.assertEqual(list(_iter_keys("*b", ("aa", "ab", "bb"))),
+        self.assertEqual(list(_get_keys("b?", ("aa", "ab", "bb"))),
+                         ["bb"])
+        self.assertEqual(list(_get_keys("*b", ("aa", "ab", "bb"))),
                          ["ab", "bb"])
-        self.assertEqual(list(_iter_keys("!?b", ("aa", "ab", "bb"))),
+        self.assertEqual(list(_get_keys("!?b", ("aa", "ab", "bb"))),
                          ["aa"])
-        self.assertEqual(list(_iter_keys("!aa|bb", ("aa", "ab", "bb"))),
+        self.assertEqual(list(_get_keys("!aa|bb", ("aa", "ab", "bb"))),
                          ["ab"])
 
-    def test_iter_indices(self):
-        self.assertEqual(list(_iter_indices(":", 5)),
+    def test_get_indices(self):
+        self.assertEqual(list(_get_indices(":", 5)),
                          [0, 1, 2, 3, 4])
-        self.assertEqual(list(_iter_indices(":2", 5)),
+        self.assertEqual(list(_get_indices(":2", 5)),
                          [0, 1])
-        self.assertEqual(list(_iter_indices("!:2", 5)),
+        self.assertEqual(list(_get_indices("!:2", 5)),
                          [2, 3, 4])
-        self.assertEqual(list(_iter_indices("-1::-1", 5)),
+        self.assertEqual(list(_get_indices("-1::-1", 5)),
                          [4, 3, 2, 1, 0])
-        self.assertEqual(list(_iter_indices("!::2", 5)),
+        self.assertEqual(list(_get_indices("!::2", 5)),
                          [1, 3])
-        self.assertEqual(list(_iter_indices("!::-2", 5)),
+        self.assertEqual(list(_get_indices("!::-2", 5)),
                          [3, 1])
 
 
