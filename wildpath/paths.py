@@ -1,8 +1,6 @@
 import sys
-from copy import deepcopy, copy
-
+from copy import copy
 from fnmatch import fnmatchcase
-from itertools import starmap
 from collections import Mapping, Sequence, MutableMapping, MutableSequence
 
 
@@ -15,6 +13,13 @@ else:
 
 
 _marker = object()
+
+
+def parse_slice(wild_slice, parse_item=lambda v: int(v) if v else None):
+    try:
+        return slice(*map(parse_item, wild_slice.split(':')))
+    except (ValueError, TypeError) as e:
+        raise IndexError("sequence index wildcard can only be '*' or slice (e.g. 1:3)")
 
 
 class BasePath(list):
@@ -82,18 +87,24 @@ class BasePath(list):
                 raise
             return default
 
+    def set_in(self, obj, value):
+        return self._set_in(obj, value)
+
+    def del_in(self, obj):
+        return self._del_in(obj)
+
     def _get_in(self, obj):
         raise NotImplementedError
 
-    def set_in(self, obj, value):
+    def _set_in(self, obj, value):
         raise NotImplementedError
 
-    def del_in(self, obj):
+    def _del_in(self, obj):
         raise NotImplementedError
 
     def pop_in(self, obj):
         result = self._get_in(obj)
-        self.del_in(obj)
+        self._del_in(obj)
         return result
 
     def has_in(self, obj):
@@ -127,7 +138,7 @@ class Path(BasePath):
                 obj = getattr(obj, key)
         return obj
 
-    def set_in(self, obj, value):
+    def _set_in(self, obj, value):
         """sets item at wildpath 'self' from the 'obj' to 'value'"""
         obj = self[:-1]._get_in(obj)
         if isinstance(obj, MutableMapping):
@@ -137,7 +148,7 @@ class Path(BasePath):
         else:
             setattr(obj, self[-1], value)
 
-    def del_in(self, obj):
+    def _del_in(self, obj):
         """deletes item at wildpath 'self' from the 'obj'"""
         obj = self[:-1]._get_in(obj)
         if isinstance(obj, MutableMapping):
@@ -148,49 +159,36 @@ class Path(BasePath):
             delattr(obj, self[-1])
 
 
-def parse_slice(wild_slice, parse_item=lambda v: int(v) if v else None):
-    try:
-        return slice(*map(parse_item, wild_slice.split(':')))
-    except (ValueError, TypeError) as e:
-        raise IndexError("sequence index wildcard can only be '*' or slice (e.g. 1:3)")
+def _get_indices(wild_slice, count):
+    negate = (wild_slice[0] == "!")
+    if negate:
+        wild_slice = wild_slice[1:]
+
+    if wild_slice == "*" or wild_slice == ":":
+        return [] if negate else range(count)
+
+    slice_ = parse_slice(wild_slice)
+
+    slice_indices = range(*slice_.indices(count))
+    if negate:
+        if slice_.step and slice_.step < 0:
+            return [i for i in reversed(range(count)) if i not in slice_indices]
+        return [i for i in range(count) if i not in slice_indices]
+    return list(slice_indices)
 
 
-def _iter_indices(wild_slice, count):
-    if '*' in wild_slice or ':' in wild_slice or '!' in wild_slice:
-        negate = (wild_slice[0] == "!")
-        if negate:
-            wild_slice = wild_slice[1:]
-        if wild_slice == "*":
-            slice_ = slice(None)
-        else:
-            slice_ = parse_slice(wild_slice)
-
-        slice_indices = range(*slice_.indices(count))
-        if negate:
-            if slice_.step and slice_.step < 0:
-                return (i for i in reversed(range(count)) if i not in slice_indices)
-            return (i for i in range(count) if i not in slice_indices)
-        return slice_indices
-    else:
-        return [int(wild_slice)]
-
-
-def _iter_keys(wild_key, keys):
-    if '*' in wild_key or '?' in wild_key or "|" in wild_key or '!' in wild_key:
-        if wild_key[0] == '!':
-            wild_keys = wild_key[1:].split('|')
-            return (k for k in keys if not any(fnmatchcase(k, key) for key in wild_keys))
-        wild_keys = wild_key.split('|')
-        return (k for k in keys if any(fnmatchcase(k, key) for key in wild_keys))
-    else:
-        return [wild_key]
+def _get_keys(wild_key, keys):
+    if wild_key[0] == '!':
+        wild_keys = wild_key[1:].split('|')
+        return [k for k in keys if not any(fnmatchcase(k, key) for key in wild_keys)]
+    wild_keys = wild_key.split('|')
+    return [k for k in keys if any(fnmatchcase(k, key) for key in wild_keys)]
 
 
 def _get_with_key(value, k):
-    try:
-        return value.__getitem__(k)
-    except AttributeError:
-        return value
+    if isinstance(value, Mapping):
+        return value[k]
+    return value
 
 
 def _get_with_index(value, index):
@@ -212,60 +210,105 @@ class WildPath(BasePath):
         """returns item at wildpath 'self' from the 'obj'"""
         if not len(self):
             return obj
-        elif isinstance(obj, Mapping):
-            return obj.__class__((k, self[1:]._get_in(obj[k])) for k in _iter_keys(self[0], obj))
-        elif isinstance(obj, Sequence):
-            return obj.__class__(self[1:]._get_in(obj[i]) for i in _iter_indices(self[0], len(obj)))
-        else:
-            return {k: self[1:]._get_in(obj[k])  for k in _iter_keys(self[0], obj.__dict__)}
-
-    def set_in(self, obj, value):
-        """sets item(s) at wildpath 'self' from the 'obj' to 'value'"""
         key = self[0]
-        if len(self) == 1:
-            if isinstance(obj, MutableMapping):
-                for k in _iter_keys(key, obj):
-                    obj[k] = _get_with_key(value, k)
-            elif isinstance(obj, MutableSequence):
-                for i in _iter_indices(key, len(obj)):
-                    obj[i] = _get_with_index(value, i)
+        if '*' in key or '?' in key or "|" in key or ':' in key or'!' in key:
+            if isinstance(obj, Mapping):
+                return obj.__class__((k, self[1:]._get_in(obj[k])) for k in _get_keys(key, obj))
+            elif isinstance(obj, Sequence):
+                return obj.__class__(self[1:].get_in(obj[i]) for i in _get_indices(key, len(obj)))
             else:
-                for k in _iter_keys(key, obj.__dict__):
-                    setattr(obj, _get_with_key(value, k))
+                return {k: self[1:]._get_in(obj.__dict__[k]) for k in _get_keys(key, obj.__dict__)}
         else:
-            if isinstance(obj, MutableMapping):
-                for k in _iter_keys(key, obj):
-                    self[1:].set_in(obj[k], _get_with_key(value, k))
-            elif isinstance(obj, MutableSequence):
-                for i in _iter_indices(key, len(obj)):
-                    self[1:].set_in(obj[i], _get_with_index(value, i))
+            if isinstance(obj, Mapping):
+                return self[1:].get_in(obj[key])
+            elif isinstance(obj, Sequence):
+                return self[1:].get_in(obj[int(key)])
             else:
-                for k in _iter_keys(key, obj.__dict__):
-                    self[1:].set_in(obj.__dict__[k], _get_with_key(value, k))
+                return self[1:].get_in(obj.__dict__[key])
 
-    def del_in(self, obj):
+    def _set_in(self, obj, value, get_with_key=_get_with_key,  # speed up function access
+                                  get_with_index=_get_with_index):
+        """sets item(s) at wildpath 'self' of 'obj' to 'value'"""
+        key = self[0]
+        if '*' in key or '?' in key or "|" in key or ':' in key or'!' in key:
+            if len(self) == 1:
+                if isinstance(obj, MutableMapping):
+                    for k in _get_keys(key, obj):
+                        obj[k] = get_with_key(value, k)
+                elif isinstance(obj, MutableSequence):
+                    for i, j in enumerate(_get_indices(key, len(obj))):
+                        obj[j] = get_with_index(value, i)
+                else:
+                    for k in _get_keys(key, obj.__dict__):
+                        obj.__dict__[k] = get_with_key(value, k)
+            else:
+                if isinstance(obj, MutableMapping):
+                    for k in _get_keys(key, obj):
+                        self[1:]._set_in(obj[k], get_with_key(value, k))
+                elif isinstance(obj, MutableSequence):
+                    for i, j in enumerate(_get_indices(key, len(obj))):
+                        self[1:]._set_in(obj[j], get_with_index(value, i))
+                else:
+                    for k in _get_keys(key, obj.__dict__):
+                        self[1:]._set_in(obj.__dict__[k], get_with_key(value, k))
+        else:
+            if len(self) == 1:
+                if isinstance(obj, MutableMapping):
+                    obj[key] = value
+                elif isinstance(obj, MutableSequence):
+                    obj[int(key)] = value
+                else:
+                    obj.__dict__[key] = value
+            else:
+                if isinstance(obj, MutableMapping):
+                    self[1:]._set_in(obj[key], _get_with_key(value, key))
+                elif isinstance(obj, MutableSequence):
+                    self[1:]._set_in(obj[int(key)], _get_with_index(value, int(key)))
+                else:
+                    self[1:]._set_in(obj.__dict__[key], _get_with_key(value, key))
+
+
+    def _del_in(self, obj):
         """deletes item(s) at wildpath 'self' from the 'obj'"""
         key = self[0]
-        if len(self) == 1:
-            if isinstance(obj, MutableMapping):
-                for k in _iter_keys(key, obj):
-                    del obj[k]
-            elif isinstance(obj, MutableSequence):
-                for i in _iter_indices(key, len(obj)):
-                    del obj[i]
+        if '*' in key or '?' in key or "|" in key or ':' in key or '!' in key:
+            if len(self) == 1:
+                if isinstance(obj, MutableMapping):
+                    for k in _get_keys(key, obj):
+                        del obj[k]
+                elif isinstance(obj, MutableSequence):
+                    for i in _get_indices(key, len(obj)):
+                        obj[i] = _marker  # marked for deletion
+                    obj[:] = [v for v in obj if v is not _marker]
+                else:
+                    for k in _get_keys(key, obj.__dict__):
+                        del obj.__dict__[k]
             else:
-                for k in _iter_keys(key, obj.__dict__):
-                    delattr(obj, k)
+                if isinstance(obj, MutableMapping):
+                    for k in _get_keys(key, obj):
+                        self[1:]._del_in(obj[k])
+                elif isinstance(obj, MutableSequence):
+                    for i in _get_indices(key, len(obj)):
+                        self[1:]._del_in(obj[i])
+                else:
+                    for k in _get_keys(key, obj.__dict__):
+                        self[1:]._del_in(obj.__dict__[k])
         else:
-            if isinstance(obj, MutableMapping):
-                for k in _iter_keys(key, obj):
-                    self[:-1].del_in(obj[k])
-            elif isinstance(obj, MutableSequence):
-                for i in _iter_indices(key, len(obj)):
-                    self[:-1].del_in(obj[i])
+            if len(self) == 1:
+                if isinstance(obj, MutableMapping):
+                    del obj[key]
+                elif isinstance(obj, MutableSequence):
+                    del obj[int(key)]
+                else:
+                    del obj.__dict__[key]
             else:
-                for k in _iter_keys(key, obj.__dict__):
-                    self[:-1].del_in(obj.__dict__[k])
+                if isinstance(obj, MutableMapping):
+                    self[1:]._del_in(obj[key])
+                elif isinstance(obj, MutableSequence):
+                    self[1:]._del_in(obj[int(key)])
+                else:
+                    self[1:]._del_in(obj.__dict__[key])
+
 
 
 
