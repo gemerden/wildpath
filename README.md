@@ -4,16 +4,16 @@ A path abstraction to handle composite (e.g. JSON) objects in python.
 
 ##Introduction
 
-This module is intended primarily as a practical tool to access data in compax data structures. Especially accessing multiple items usually requires for-loops or other constructs and there is no straightforward way to pass nested locations as single parameters. This module solves this problem by introducing 2 classes: `Path` and `WildPath`:
+This module is intended primarily as a practical tool to access data in complex data structures. Especially accessing multiple items usually requires for-loops or other constructs and there is no straightforward way to pass nested locations as single parameters. This module solves this problem by introducing 2 classes: `Path` and `WildPath`:
  
-  - `Path` is optimized for speed, allows access to single items in the data structure,
+  - `Path` is optimized for speed, allowing access to single items in the data structure,
   - `WildPath` allows wildcards for access to multiple items in the same call,
   -  Both have iterators (in the common baseclass) to run through all paths and values in a data structure.
   
 See the chapter "Examples" below to get a more practical understanding of the module and its uses. 
 
 ##Prerequisites
-The module `wildpaths` has been tested under both `python 2.7` and `python 3.6`.
+The module `wildpaths` has been tested for both `python 2.7` and `python 3.6`.
   
 ##Examples
 Starting with this example structure of an agenda item in some tool:
@@ -105,14 +105,17 @@ assert wildpath.get_in(agenda) == {"start_time": "10:00", "end_time": "11:00"}
 
 assert WildPath("item?").get_in({"item1": "chair", "item2": "table", "count": 2}) == {"item1": "chair", "item2": "table"}
 
-# '!' at the start of a key definition in a wildpath:
+# '!' at the start of a key definition negates the key (items are taken that do not match the rest of the key):
 
 assert WildPath("!item?").get_in({"item1": "chair", "item2": "table", "count": 2}) == {"count": 2}
 ```
-Similarly it supports slices as wildcard like path=elements 
+Similarly it supports slices as wildcard like path-elements 
 ```python
 wildpath = WildPath("items.0:2.name")
-assert wildpath.get_in(agenda) == ["opening", "progress", "closing"]
+assert wildpath.get_in(agenda) == ["opening", "progress"]
+
+wildpath = WildPath("items.!0:2.name")  # slices can be negated
+assert wildpath.get_in(agenda) == [ "closing"]
 
 wildpath = WildPath("items.-1::-1.name")  # extended slicing also works, in this case reversing the order
 assert wildpath.get_in(agenda) == [ "closing", "progress", "opening"]
@@ -220,25 +223,36 @@ assert repr(Path("a.b.c")) == "['a', 'b', 'c']"
 
 assert str(Path("a.b.c")) == "a.b.c"
 
-
 ```
 **Notes**:
- - all the 
  - some methods (like `__add__`) are overridden to return the correct class (Path or WildPath)
-##Installing
+ 
+##Restrictions
+Because of the characters used to parse the paths, some keys in the terget datastructures will cause the system to fail:
 
+ - for `Path` and `WildPath`: keys in Mappings (e.g. dict, OrderedDict) cannot contain a `.`,
+ - for `WildPath`: keys in Mappings cannot contain the characters `*`, `?`, `!` and `|`, or to be precise, if they are present, they cannot be used in paths for lookups,
+ - note that the `.` separator can easily be replaced in a subclass, allowing paths like `"a/b/3/x"` instead of `"a.b.3.x"` (and so paths `"a/b.c/3/x"`):
+ 
+ ```python
+from wildpath.paths import Path, WildPath
+ 
+class SlashPath(Path):
+    sep = '/'
+ 
+class WildSlashPath(WildPath):
+    sep = '/'
+```
+Currently there is no way to override the other meaningful characters in `WildPath`.
 
+##Testing
 
-##Running the tests
-
-
-##Versioning
-
-We use SemVer for versioning. For the versions available, see the tags on this repository.
+The unittests are standard python unittests and can be run as such.
+  
 
 ##Authors
 
-Lars van Gemerden - initial code and documentation
+Lars van Gemerden (rational-it) - initial code and documentation
 
 ##License
 
@@ -246,4 +260,4 @@ This project is licensed under the MIT License - see the LICENSE.md file for det
 
 ##Acknowledgments
 
-A 
+A big thanks to Jasper Hartong for convincing me to open-source this module.  
