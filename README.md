@@ -1,8 +1,8 @@
-#WildPath
+# WildPath
 
 A path abstraction to handle composite (e.g. JSON) objects in python.
 
-##Introduction
+## Introduction
 
 This module is intended primarily as a practical tool to access data in complex data structures. Especially accessing multiple items usually requires for-loops or other constructs and there is no straightforward way to pass nested locations as single parameters. This module solves this problem by introducing 2 classes: `Path` and `WildPath`:
  
@@ -52,10 +52,10 @@ Basically the function definition is replaced by a string, using `WildPath.get_i
  - A `Path` or `WildPath` is easily serializable (`Path(str(path)) == path`), where a function definition isn't.
 
 
-##Prerequisites
+## Prerequisites
 The module `wildpaths` has been tested for both `python 2.7` and `python 3.6`. The only dependencies are on standard python libraries.
   
-##Examples
+## Examples
 Starting with this example structure of an agenda item in some tool:
  
  ```python
@@ -86,7 +86,7 @@ agenda = {
 ```
 
 
-###class `Path`
+### class `Path`
 The 'Path' class let you get, set or delete items at a specific location:
 
 ```python
@@ -111,7 +111,7 @@ assert path.has_in(agenda) == False  # has_in checks the presenca of a value at 
  - If a data structure contains python objects, the Path methods will attempt to find values in the objects `__dict__`,
  - If a key, index or attribute is not found in the data, a `KeyError`, `IndexError` or `AttributeError` will be raised,
  
-###class `WildPath`
+### class `WildPath`
 `WildPath` supports the same API as `Path`, but additionally lets you use wildcards and slicing in the path definition to access multiple items in the structure (the `Path` class is there because for single lookups it is substantially faster):
  
 ```python
@@ -166,7 +166,7 @@ assert wildpath.get_in(agenda) == [ "closing", "progress", "opening"]
  - WildPath also supports attribute lookup in nested objects, list attributes in objects, etc.,
  - All the examples of `WildPath.get_in` also work for `set_in`, `del_in`, `pop_in` and `has_in`.
 
-###Iterators
+### Iterators
 The Path classes also have some iterator classmethods defined:
 
 ```python
@@ -270,7 +270,7 @@ assert str(Path("a.b.c")) == "a.b.c"
  - some methods (like `__add__` and `path[1:]`) are overridden to return the correct class (Path or WildPath)
  
  
-##Restrictions
+## Restrictions
 Because of the characters used to parse the paths, some keys in the terget datastructures will cause the system to fail:
  - In python objects Path and WildPath will lookup keys in the instance `__dict__`. This means that some constructions like `property` and overridden `__getattr__` will not be taken into account,
  - for `Path` and `WildPath`: keys in Mappings (e.g. dict, OrderedDict) cannot contain a `.`,
@@ -288,18 +288,18 @@ class WildSlashPath(WildPath):
 ```
 Currently there is no way to override the other meaningful characters in `WildPath`.
 
-##Testing
+## Testing
 
 The unittests are standard python unittests and can be run as such.
 
-##Authors
+## Authors
 
 Lars van Gemerden (rational-it) - initial code and documentation.
 
-##License
+## License
 
 This project is licensed under the MIT License - see the LICENSE.md file for details
 
-##Acknowledgments
+## Acknowledgments
 
 A big thanks to Jasper Hartong for convincing me to open-source this module.  
