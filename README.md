@@ -201,7 +201,7 @@ To create an alternative representation of the datastructure:
 ```python
 D = {str(path): value for path, value in Path.items(agenda)}
 ```
-Path.items() has an optional argument `all` that if set to `True` will iterate over all path, value combination, including sub-paths of the paths above:
+Path.items() has an optional argument `all` that if set to `True` will iterate over all path, value combination, including intermediary paths:
 ```python
 from wildpath.paths import Path
 
