@@ -3,6 +3,7 @@ import unittest
 
 from copy import deepcopy
 
+from samples.google_route import google_route
 from samples.simple import agenda
 from wildpath.paths import Path, WildPath, parse_slice, _get_keys, _get_indices
 
@@ -42,6 +43,7 @@ class TestBase(unittest.TestCase):
         )
 
         self.agenda = agenda
+        self.google_route = google_route
 
 
 class TestPath(TestBase):
@@ -283,7 +285,7 @@ class TestWildPath(TestBase):
         WildPath("ff.0:3")._del_in(s)
         self.assertEqual(s.ff, [4,5,6])
 
-    def test_wild_or(self):
+    def test_wildkey_or(self):
         s = deepcopy(self.complex)
         self.assertEqual(WildPath("aa|ba").get_in(s), {"aa": 1, "ba": [2, 3]})
         self.assertEqual(WildPath("ca.d|e").get_in(s), {"d": 6, "e": 7})
@@ -292,6 +294,21 @@ class TestWildPath(TestBase):
 
         result = WildPath("items.*.name|subjects").get_in(agenda)
         self.assertTrue(len(r) == 2 for r in result)
+
+    def test_wildslice_or(self):
+        L = [0,1,2,3,4,5,6,7,8,9]
+        path_1 = WildPath(":2|3:")
+        path_2 = WildPath("::2|::3")
+        path_3 = WildPath("::-2|::-3")
+        path_4 = WildPath(":3|2:")  #all
+        path_5 = WildPath("!:2|3:")
+
+        #  get_in
+        self.assertEqual(path_1.get_in(L), [0,1,3,4,5,6,7,8,9])  # not 2
+        self.assertEqual(path_2.get_in(L), [0, 2, 4, 6, 8, 3, 9])
+        self.assertEqual(path_3.get_in(L), [9, 7, 5, 3, 1, 6, 0])
+        self.assertEqual(path_4.get_in(L), L)
+        self.assertEqual(path_5.get_in(L), [2])
 
     def test_wild_get(self):
         s = deepcopy(self.complex)
@@ -495,6 +512,20 @@ class TestDocs(TestBase):
             assert new_dict == agenda
         except Exception as e:
             self.fail(e)
+
+    def test_google_example(self):
+        def get_geo_locations(json_route):
+            geo_locs = []
+            for json_step in json_route["routes"][0]["legs"][0]["steps"]:  # there is only 1 route and 1 leg in the response
+                geo_locs.append({"start_location": json_step["start_location"],
+                                 "end_location": json_step["end_location"]})
+            return geo_locs
+
+        geo_locations_1 = get_geo_locations(self.google_route)
+
+        location_path = WildPath("routes.0.legs.0.steps.*.*_location")
+        geo_locations_2 = location_path.get_in(self.google_route)
+        self.assertEqual(geo_locations_1, geo_locations_2)
 
 
 class TestOther(unittest.TestCase):
