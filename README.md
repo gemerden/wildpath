@@ -6,14 +6,54 @@ A path abstraction to handle composite (e.g. JSON) objects in python.
 
 This module is intended primarily as a practical tool to access data in complex data structures. Especially accessing multiple items usually requires for-loops or other constructs and there is no straightforward way to pass nested locations as single parameters. This module solves this problem by introducing 2 classes: `Path` and `WildPath`:
  
-  - `Path` is optimized for speed, allowing access to single items in the data structure,
-  - `WildPath` allows wildcards for access to multiple items in the same call,
+  - `Path` is optimized for speed, allowing to get, set and delete single items in the data structure,
+  - `WildPath` allows wildcards in paths to get the same access to multiple items in the same call,
   -  Both have iterators (in the common baseclass) to run through all paths and values in a data structure.
-  
-See the chapter "Examples" below to get a more practical understanding of the module and its uses. 
+
+As an typical example we take the JSON response of a basic call to `maps.googleapis.com`, where we ask it for the route between 2 addresses. The response is about 400 lines of JSON if nicely formatted. However we will only be interested in the geo_locations of the individual steps (turn-by-turn instructions) of the route.
+
+In traditional code this would look something like (with `json_route` the result from the call to the google API):
+```python
+def get_geo_locations(json_route):
+    geo_locs = []
+    for json_step in json_route["routes"][0]["legs"][0]["steps"]:  #  there is only 1 route and 1 leg in the response
+        geo_locs.append({"start_location": json_step["start_location"],
+                         "end_location": json_step["end_location"]})
+    return geo_locs
+    
+geo_locations = get_geo_locations(json_route)
+```
+
+Using `WildPath` the same result would be obtained by:
+
+```python
+location_path = WildPath("routes.0.legs.0.steps.*.*_location")
+
+geo_locations = location_path.get_in(json_route)
+```
+
+Both produce a list of items looking like this:
+```python
+{
+    "start_location": {
+        "lat": 52.0800134,
+        "lng": 4.3271703
+    },
+    "end_location": {
+        "lat": 52.0805958,
+        "lng": 4.3286669
+    }
+}
+```
+Basically the function definition is replaced by a string, using `WildPath.get_in` for the correct lookup logic. This has some advantages:
+ 
+ - Less lines of code means lower likelyhood of bugs,
+ - Better readability and maintainablity (once you get used to the path-notation),
+ - A `Path` or `WildPath` is easily serializable (`Path(str(path)) == path`), where a function definition isn't.
+
 
 ##Prerequisites
-The module `wildpaths` has been tested for both `python 2.7` and `python 3.6`.
+The module `wildpaths` has been tested for both `python 2.7` and `python 3.6`. The only dependencies are on standard python libraries.
   
 ##Examples
 Starting with this example structure of an agenda item in some tool:
@@ -45,6 +85,7 @@ agenda = {
 }
 ```
 
+
 ###class `Path`
 The 'Path' class let you get, set or delete items at a specific location:
 
@@ -67,15 +108,16 @@ assert path.has_in(agenda) == False  # has_in checks the presenca of a value at 
 **Notes**:
  - `Path.get_in(obj)` can take a `default` parameter, that is returned if no value exists at the path location,
  - `Path.pop_in(obj)` is also supported, removing the value at `path` in the object and returning it,
- - If a data structure contains python objects, the Path methods will attempt to find values in the objects `__dict__`.
+ - If a data structure contains python objects, the Path methods will attempt to find values in the objects `__dict__`,
+ - If a key, index or attribute is not found in the data, a `KeyError`, `IndexError` or `AttributeError` will be raised,
  
 ###class `WildPath`
-`WildPath` supports the same API as `Path`, but additionally lets you use wildcards and slicing to access multiple items in the structure (the `Path` class is there because for single lookups it is substantially faster):
+`WildPath` supports the same API as `Path`, but additionally lets you use wildcards and slicing in the path definition to access multiple items in the structure (the `Path` class is there because for single lookups it is substantially faster):
  
 ```python
 from wildpath.paths import WildPath
 
-wildpath = WildPath("items.*.duration") 
+wildpath = WildPath("items.*.duration")  # basic 'star' notation
  
 durations = wildpath.get_in(agenda)  # retrieves all the durations of the items on the agenda
 assert durations == ["5 minutes", "25 minutes", "5 minutes"]
@@ -204,7 +246,7 @@ for path, value in Path.items(sample, all=True):
 You can also filter out specific items (e.g. None values) by adding an if statement in the loop. Doing this, take care to not remove subpaths from the items, as nested lists and dicts are not automatically created by `set_in`.
 
 **Notes**:
- - Apart from `Path.items(obj, all=False)`, also `Path.paths(obj, all=False)` and `Path.values(obj, all=False)` are also implemented, iterating over the paths and values of the data structure,
+ - As a convenience `Path.paths(obj)` and `Path.values(obj)` are also implemented, iterating over the paths and values of the data structure,
  - Currently these iterators cannot handle circular relationships. This will result in a RuntimeError (recursion depth) ,
  - The iterators return generators, not lists. To create lists, use `list(Path.items(obj))`, `list(Path.paths(obj))`, etc.
  - They are implemented on the baseclass of `Path` and `WildPath`, so you might as well use `WildPath.items(obj)`, etc.
@@ -225,14 +267,15 @@ assert str(Path("a.b.c")) == "a.b.c"
 
 ```
 **Notes**:
- - some methods (like `__add__`) are overridden to return the correct class (Path or WildPath)
+ - some methods (like `__add__` and `path[1:]`) are overridden to return the correct class (Path or WildPath)
+ 
  
 ##Restrictions
 Because of the characters used to parse the paths, some keys in the terget datastructures will cause the system to fail:
-
+ - In python objects Path and WildPath will lookup keys in the instance `__dict__`. This means that some constructions like `property` and overridden `__getattr__` will not be taken into account,
  - for `Path` and `WildPath`: keys in Mappings (e.g. dict, OrderedDict) cannot contain a `.`,
  - for `WildPath`: keys in Mappings cannot contain the characters `*`, `?`, `!` and `|`, or to be precise, if they are present, they cannot be used in paths for lookups,
- - note that the `.` separator can easily be replaced in a subclass, allowing paths like `"a/b/3/x"` instead of `"a.b.3.x"` (and so paths `"a/b.c/3/x"`):
+ - note that the `.` separator can easily be replaced in a subclass, allowing paths like `"a/b/3/x"` instead of `"a.b.3.x"` (and therefore path `"a/b.c/3/x"` with `b.c` a dictionary key):
  
  ```python
 from wildpath.paths import Path, WildPath
@@ -248,11 +291,10 @@ Currently there is no way to override the other meaningful characters in `WildPa
 ##Testing
 
 The unittests are standard python unittests and can be run as such.
-  
 
 ##Authors
 
-Lars van Gemerden (rational-it) - initial code and documentation
+Lars van Gemerden (rational-it) - initial code and documentation.
 
 ##License
 
