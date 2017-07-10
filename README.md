@@ -253,15 +253,15 @@ You can also filter out specific items (e.g. None values) by adding an if statem
  - These iterators can also be useful the get an alternative view on a datastructure: a starting point to define WildPaths,
  
 ### Path manipulations
-Until here we have not changed paths once generated. However, since `Path` and `WildPath` are subclasses of of `list` (via BasePath), (almost?) all list methods can be used with both, e.g.:
+`Path` and `WildPath` are subclasses of tuple (via BasePath), so (almost?) all tuple methods can be used with both, e.g.:
 ```python
 from wildpath.paths import Path
 
 assert Path("a.b") + Path("c") == Path("a.b.c")
 assert Path("a.b.c")[1:] == Path("b.c")
-assert repr(Path("a.b.c")) == "['a', 'b', 'c']"
+assert repr(Path("a.b.c")) == "('a', 'b', 'c')"
 
-#  however
+#  however (this is not the tuple implementation):
 
 assert str(Path("a.b.c")) == "a.b.c"
 
