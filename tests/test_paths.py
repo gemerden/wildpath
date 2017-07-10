@@ -527,6 +527,15 @@ class TestDocs(TestBase):
         geo_locations_2 = location_path.get_in(self.google_route)
         self.assertEqual(geo_locations_1, geo_locations_2)
 
+    def test_path_tuple_example(self):
+        assert Path("a.b") + Path("c") == Path("a.b.c")
+        assert Path("a.b.c")[1:] == Path("b.c")
+        assert repr(Path("a.b.c")) == "('a', 'b', 'c')"
+
+        #  however (this is not the tuple implementation):
+
+        assert str(Path("a.b.c")) == "a.b.c"
+
 
 class TestOther(unittest.TestCase):
 

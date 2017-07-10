@@ -22,7 +22,7 @@ def parse_slice(wild_slice, parse_item=lambda v: int(v) if v else None):
         raise IndexError("sequence index wildcard can only be '*' or slice (e.g. 1:3)")
 
 
-class BasePath(list):
+class BasePath(tuple):
     """
     Helper classes to be able to use '.' separated paths to access elements in objects, lists and dictionaries.
     """
@@ -64,17 +64,17 @@ class BasePath(list):
         for _, sub_obj in cls.items(obj, all=all):
             yield sub_obj
 
-    def __init__(self, string_or_seq=None):
+    def __new__(cls, string_or_seq=None):
         string_or_seq = string_or_seq or ()
         if isinstance(string_or_seq, str):
-            list.__init__(self, string_or_seq.split(self.sep))
+            return tuple.__new__(cls, string_or_seq.split(cls.sep))
         else:
-            list.__init__(self, string_or_seq)
+            return tuple.__new__(cls, string_or_seq)
 
     def __getitem__(self, key):
         if isinstance(key, slice):
-            return self.__class__(list.__getitem__(self, key))
-        return list.__getitem__(self, key)
+            return self.__class__(tuple.__getitem__(self, key))
+        return tuple.__getitem__(self, key)
 
     def __getslice__(self, i, j):
         return self.__getitem__(slice(i, j))
@@ -116,7 +116,7 @@ class BasePath(list):
         return True
 
     def __add__(self, other):
-        return self.__class__(list.__add__(self, other))
+        return self.__class__(tuple.__add__(self, other))
 
     def __str__(self):
         return self.sep.join(str(v) for v in self)
