@@ -167,14 +167,21 @@ def _get_indices(wild_slice, count):
     if wild_slice == "*" or wild_slice == ":":
         return [] if negate else range(count)
 
-    slice_ = parse_slice(wild_slice)
+    slices = list(map(parse_slice, wild_slice.split('|')))
+    if len(slices) == 1:
+        slice_indices = range(*slices[0].indices(count))
+    else:
+        slice_indices = []
+        for args in (s.indices(count) for s in slices):
+            for i in range(*args):
+                if i not in slice_indices:
+                    slice_indices.append(i)
 
-    slice_indices = range(*slice_.indices(count))
     if negate:
-        if slice_.step and slice_.step < 0:
+        if all(s.step and s.step < 0 for s in slices):
             return [i for i in reversed(range(count)) if i not in slice_indices]
         return [i for i in range(count) if i not in slice_indices]
-    return list(slice_indices)
+    return slice_indices
 
 
 def _get_keys(wild_key, keys):
@@ -211,20 +218,37 @@ class WildPath(BasePath):
         if not len(self):
             return obj
         key = self[0]
-        if '*' in key or '?' in key or "|" in key or ':' in key or'!' in key:
-            if isinstance(obj, Mapping):
-                return obj.__class__((k, self[1:]._get_in(obj[k])) for k in _get_keys(key, obj))
-            elif isinstance(obj, Sequence):
-                return obj.__class__(self[1:].get_in(obj[i]) for i in _get_indices(key, len(obj)))
+        if len(self) == 1:
+            if '*' in key or '?' in key or "|" in key or ':' in key or'!' in key:
+                if isinstance(obj, Mapping):
+                    return obj.__class__((k, obj[k]) for k in _get_keys(key, obj))
+                elif isinstance(obj, Sequence):
+                    return obj.__class__(obj[i] for i in _get_indices(key, len(obj)))
+                else:
+                    return {k: obj.__dict__[k] for k in _get_keys(key, obj.__dict__)}
             else:
-                return {k: self[1:]._get_in(obj.__dict__[k]) for k in _get_keys(key, obj.__dict__)}
+                if isinstance(obj, Mapping):
+                    return obj[key]
+                elif isinstance(obj, Sequence):
+                    return obj[int(key)]
+                else:
+                    return obj.__dict__[key]
         else:
-            if isinstance(obj, Mapping):
-                return self[1:].get_in(obj[key])
-            elif isinstance(obj, Sequence):
-                return self[1:].get_in(obj[int(key)])
+            if '*' in key or '?' in key or "|" in key or ':' in key or'!' in key:
+                if isinstance(obj, Mapping):
+                    return obj.__class__((k, self[1:]._get_in(obj[k])) for k in _get_keys(key, obj))
+                elif isinstance(obj, Sequence):
+                    return obj.__class__(self[1:].get_in(obj[i]) for i in _get_indices(key, len(obj)))
+                else:
+                    return {k: self[1:]._get_in(obj.__dict__[k]) for k in _get_keys(key, obj.__dict__)}
             else:
-                return self[1:].get_in(obj.__dict__[key])
+                if isinstance(obj, Mapping):
+                    return self[1:].get_in(obj[key])
+                elif isinstance(obj, Sequence):
+                    return self[1:].get_in(obj[int(key)])
+                else:
+                    return self[1:].get_in(obj.__dict__[key])
+
 
     def _set_in(self, obj, value, get_with_key=_get_with_key,  # speed up function access
                                   get_with_index=_get_with_index):
