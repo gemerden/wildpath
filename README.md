@@ -134,12 +134,12 @@ path.set_in(agenda, "10 minutes")  # sets value at path location
 assert path.get_in(agenda) == "10 minutes"
 
 path.del_in(agenda)  # deletes key-value at path loation
-assert path.has_in(agenda) == False  # has_in checks the presenca of a value at the path location
+assert path.has_in(agenda) == False  # has_in checks the presence of a value at the path location
 ```
  
 ### class `WildPath`
 `WildPath` supports the same API as `Path`, but additionally lets you use wildcards and slicing in the path definition to access multiple items in the structure (the `Path` class is there because for single lookups it is substantially faster):
- 
+
 ```python
 from wildpath.paths import WildPath
 
@@ -189,7 +189,7 @@ assert WildPath("start_*&*_time").get_in(agenda) == {"start_time": "10:00"}
 
 assert WildPath("!item?").get_in({"item1": "chair", "item2": "table", "count": 2}) == {"count": 2}
 
-# parentheses can be use to indicate precedence:
+# parentheses can be used to indicate precedence:
 
 assert WildPath("!(a|b)") != WildPath("!a|b")
 ```
