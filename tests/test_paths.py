@@ -5,7 +5,8 @@ from copy import deepcopy
 
 from samples.google_route import google_route
 from samples.simple import agenda
-from wildpath.paths import Path, WildPath, parse_slice, _get_keys, _get_indices
+from wildpath.keyparser import KeyParser
+from wildpath.paths import Path, WildPath
 
 
 class Object(object):
@@ -135,38 +136,6 @@ class TestPath(TestBase):
         with self.assertRaises(AttributeError):
             Path("f.3").get_in(s)
 
-class TestIterators(TestBase):
-
-    def test_iteritems_all(self):
-        paths = [path for path in Path.items(self.simple, all=True)]
-        self.assertEqual(len(paths), 16)
-
-        new = {}
-        for path, value in Path.items(self.simple, all=True):
-            path._set_in(new, value)
-
-        for path in Path.paths(new):
-            self.assertEqual(path.get_in(self.simple), path.get_in(new))
-
-    def test_iteritems(self):
-        items = [path for path in Path.items(self.simple, all=False)]
-        self.assertTrue(all(isinstance(item, tuple) for item in items))
-        self.assertEqual(len(items), 10)
-
-    def test_iteritems_copy(self):
-        paths = [path for path in Path.items(self.simple, all=True)]
-        self.assertEqual(len(paths), 16)
-
-        simple = deepcopy(self.simple)
-        new = {}
-        for path, value in Path.items(simple, all=True):
-            if isinstance(value, int):
-                value = str(value)
-            path._set_in(new, value)
-
-        self.assertEqual(simple, self.simple)
-
-
 class TestWildPath(TestBase):
 
     def test_pop(self):
@@ -274,7 +243,7 @@ class TestWildPath(TestBase):
         self.assertEqual(WildPath("ff.::2").get_in(s), [1,3,5])
         self.assertEqual(WildPath("ff.1:3").get_in(s), [2,3])
         self.assertEqual(WildPath("ff.:").get_in(s), [1,2,3,4,5,6])
-        self.assertEqual(WildPath("ff.-1:0:-2").get_in(s), [6,4,2])
+        self.assertEqual(WildPath("ff.-1:0:-2").get_in(s), [2,4,6])
         self.assertEqual(WildPath("gg.:2.b").get_in(s), [2,3])
         with self.assertRaises(KeyError):
             self.assertEqual(WildPath("gg.:2.a").get_in(s), [6,4,2])
@@ -301,12 +270,12 @@ class TestWildPath(TestBase):
         path_2 = WildPath("::2|::3")
         path_3 = WildPath("::-2|::-3")
         path_4 = WildPath(":3|2:")  #all
-        path_5 = WildPath("!:2|3:")
+        path_5 = WildPath("!(:2|3:)")
 
         #  get_in
         self.assertEqual(path_1.get_in(L), [0,1,3,4,5,6,7,8,9])  # not 2
-        self.assertEqual(path_2.get_in(L), [0, 2, 4, 6, 8, 3, 9])
-        self.assertEqual(path_3.get_in(L), [9, 7, 5, 3, 1, 6, 0])
+        self.assertEqual(path_2.get_in(L), [0, 2, 3, 4, 6, 8, 9])
+        self.assertEqual(path_3.get_in(L), [0, 1, 3, 5, 6, 7, 9])
         self.assertEqual(path_4.get_in(L), L)
         self.assertEqual(path_5.get_in(L), [2])
 
@@ -370,7 +339,7 @@ class TestWildPath(TestBase):
         self.assertEqual(path_1.get_in(L), [])
         self.assertEqual(path_2.get_in(L), [1,3,5])
         self.assertEqual(path_3.get_in(L), [0,3,4,5])
-        self.assertEqual(path_4.get_in(L), [4, 2, 0])
+        self.assertEqual(path_4.get_in(L), [0, 2, 4])
         #  set_in
         L = [0, 1, 2, 3, 4, 5]
         path_1.set_in(L, [1,2,3])
@@ -386,7 +355,7 @@ class TestWildPath(TestBase):
 
         L = [0, 1, 2, 3, 4, 5]
         path_4.set_in(L, [1,2,3])
-        self.assertEqual(L, [3,1,2,3,1,5])
+        self.assertEqual(L, [1, 1, 2, 3, 3, 5])
         #  del_in
         L = [0, 1, 2, 3, 4, 5]
         path_1.del_in(L)
@@ -420,7 +389,264 @@ class TestWildPath(TestBase):
         try:
             path._set_in(agenda, "some other name")  # value is not seen as a Sequence
         except Exception as e:
-            self.fail(e.message)
+            self.fail(e)
+
+
+class TestIterators(TestBase):
+
+    def test_iteritems_all(self):
+        paths = [path for path in Path.items(self.simple, all=True)]
+        self.assertEqual(len(paths), 16)
+
+        new = {}
+        for path, value in Path.items(self.simple, all=True):
+            path._set_in(new, value)
+
+        for path in Path.paths(new):
+            self.assertEqual(path.get_in(self.simple), path.get_in(new))
+
+    def test_iteritems(self):
+        items = [path for path in Path.items(self.simple, all=False)]
+        self.assertTrue(all(isinstance(item, tuple) for item in items))
+        self.assertEqual(len(items), 10)
+
+    def test_iteritems_copy(self):
+        paths = [path for path in Path.items(self.simple, all=True)]
+        self.assertEqual(len(paths), 16)
+
+        simple = deepcopy(self.simple)
+        new = {}
+        for path, value in Path.items(simple, all=True):
+            if isinstance(value, int):
+                value = str(value)
+            path._set_in(new, value)
+
+        self.assertEqual(simple, self.simple)
+
+
+class TestKeyParser(unittest.TestCase):
+    
+    def setUp(self):
+        self.keyparser = KeyParser()
+
+    def test_empty(self):
+        exp = self.keyparser.parse("*")
+        self.assertEqual(exp("a", "b", "c"), {"a", "b", "c"})
+        exp = self.keyparser.parse("!*")
+        self.assertEqual(exp(*range(5)), set())
+
+    def test_or(self):
+        exp = self.keyparser.parse("a|b|c")
+        self.assertEqual(exp("a", "b", "d"), {"a", "b"})
+        exp = self.keyparser.parse("1|2|3")
+        self.assertEqual(exp(*range(5)), {1,2,3})
+
+    def test_and(self):
+        exp = self.keyparser.parse("a&b&c")
+        self.assertEqual(exp("a", "b", "d"), set())  # no item has and key a and key b and key c
+        exp = self.keyparser.parse("1&2&3")
+        self.assertEqual(exp(*range(5)), set())
+
+    def test_not(self):
+        exp = self.keyparser.parse("!a")
+        self.assertEqual(exp("a", "b", "c"), {"b", "c"})  # no item has and key a and key b and key c
+        exp = self.keyparser.parse("!1")
+        self.assertEqual(exp(*range(5)), {0,2,3,4})
+
+    def test_composite(self):
+        exp = self.keyparser.parse("!a&b|c")
+        self.assertEqual(exp("a", "b", "c"), {"b", "c"})  # no item has and key a and key b and key c
+        exp = self.keyparser.parse("!1&2|3")
+        self.assertEqual(exp(*range(5)), {2,3})
+
+    def test_composite_with_slices(self):
+        indices = tuple(range(10))
+        exp = self.keyparser.parse(":")
+        self.assertEqual(exp(*indices), set(indices))
+        exp = self.keyparser.parse("*")
+        self.assertEqual(exp(*indices), set(indices))
+        exp = self.keyparser.parse("1:7|2:8|3:9")
+        self.assertEqual(exp(*indices), {1,2,3,4,5,6,7,8})
+        exp = self.keyparser.parse("1:7&2:8&3:9")
+        self.assertEqual(exp(*indices), {3,4,5,6})
+        exp = self.keyparser.parse("(::2&1:6|2::4)&!4")
+        self.assertEqual(exp(*indices), {2, 6})
+
+    def test_composite_with_wildcards(self):
+        keys = ("a", "b", "c", "aa", "ab", "ac", "bb", "bc", "cc")  # len(keys) == 10
+        exp = self.keyparser.parse("*")
+        self.assertEqual(exp(*keys), set(keys))
+        exp = self.keyparser.parse("a*")
+        self.assertEqual(exp(*keys), {"a", "aa", "ab", "ac"})
+        exp = self.keyparser.parse("a?")
+        self.assertEqual(exp(*keys), {"aa", "ab", "ac"})
+        exp = self.keyparser.parse("!a*")  # not starting with "a"
+        self.assertEqual(exp(*keys), {"b", "c", "bb", "bc", "cc"})
+        exp = self.keyparser.parse("b*|c*")  # not starting with "a"
+        self.assertEqual(exp(*keys), {"b", "c", "bb", "bc", "cc"})
+        exp = self.keyparser.parse("b*&*c")  # not starting with "a"
+        self.assertEqual(exp(*keys), {"bc"})
+
+    def test_simple_keys(self):
+        keys = ("a", "b", "c")
+        wildkey_expected = {"*": {"a", "b", "c"},
+                            "(*)": {"a", "b", "c"},
+                            "!(*)":set(),
+                            "(!*)": set(),
+                            "a": {"a"},
+                            "!a": {"b", "c"},
+                            "a*": {"a"},
+                            "!a*": {"b", "c"},
+                            "!(a*)": {"b", "c"},
+                            "a|b": {"a", "b"},
+                            "a&b": set(),
+                            "a|!b": {"a", "c"},
+                            "a&!b": {"a"},
+                            "!(a|b)": {"c"},
+                            "!(a&b)": {"a", "b", "c"}}
+        for wildkey, expected in wildkey_expected.items():
+            expression = self.keyparser.parse(wildkey)
+            self.assertEqual(expression(*keys), expected)
+
+    def test_simple_indexes(self):
+        keys = tuple(range(3))
+        wildkey_expected = {"*": {0,1,2},
+                            ":": {0,1,2},
+                            "(:)": {0,1,2},
+                            "!(:)":set(),
+                            "(!:)": set(),
+                            "1": {1},
+                            "!1": {0, 2},
+                            "1:": {1,2},
+                            "!1:": {0},
+                            "!(1:)": {0},
+                            "1|2": {1, 2},
+                            "1&2": set(),
+                            "1|!2": {0, 1},
+                            "1&!2": {1},
+                            "!(1|2)": {0},
+                            "!(1&2)": {0,1,2}}
+        for wildkey, expected in wildkey_expected.items():
+            expression = self.keyparser.parse(wildkey)
+            self.assertEqual(expression(*keys), expected)
+
+    def test_alt_keys(self):
+        keys = {"a", "b", "a b"}
+        wildkey_expected = {"*": {"a", "b", "a b"},
+                            "(*)": {"a", "b", "a b"},
+                            "!(*)":set(),
+                            "(!*)": set(),
+                            "a": {"a"},
+                            "!a": {"b", "a b"},
+                            "a*": {"a", "a b"},
+                            "!a*": {"b"},
+                            "!(a*)": {"b"},
+                            "a|b": {"a", "b"},
+                            "a&b": set(),
+                            "a|!b": {"a", "a b"},
+                            "a&!b": {"a"},
+                            "!(a|b)": {"a b"},
+                            "!(a&b)": {"a", "b", "a b"}}
+        for wildkey, expected in wildkey_expected.items():
+            expression = self.keyparser.parse(wildkey)
+            self.assertEqual(expression(*keys), expected)
+
+
+class TestLogicPath(TestBase):
+
+    def test_key_or(self):
+        obj = dict(a=1, b=2, c=3, aa=4)
+        path = WildPath("a|b|c")
+        self.assertEqual(path.get_in(obj), dict(a=1, b=2, c=3))
+
+    def test_key_and(self):
+        obj = dict(a=1, b=2, c=3, aa=4)
+        path = WildPath("a&b&c")  # no key is a and b and c
+        self.assertEqual(path.get_in(obj), dict())
+
+    def test_key_not(self):
+        obj = dict(a=1, b=2, c=3)
+        path = WildPath("!a")
+        self.assertEqual(path.get_in(obj), dict(b=2, c=3))
+
+    def test_key_composite(self):
+        obj = dict(a=1, b=2, c=3, aa=4, ab=5, ac=6, bb=7, bc=8, cc=9)
+        path = WildPath("b*|c*")  # starting with b or c
+        self.assertEqual(path.get_in(obj), dict(b=2, c=3, bb=7, bc=8, cc=9))
+        path = WildPath("b*&*c")  # starting with b AND ending with c
+        self.assertEqual(path.get_in(obj), dict(bc=8))
+
+    def test_index_or(self):
+        obj = list(range(8))
+        path = WildPath("1|2|3")
+        self.assertEqual(path.get_in(obj), [1,2,3])
+
+    def test_index_and(self):
+        obj = list(range(8))
+        path = WildPath("1&2&3")
+        self.assertEqual(path.get_in(obj), [])
+
+    def test_index_not(self):
+        obj = list(range(8))
+        path = WildPath("!1")
+        self.assertEqual(path.get_in(obj), [0,2,3,4,5,6,7])
+
+    def test_index_composite(self):
+        obj = list(range(8))
+        path = WildPath("1:3|5:7")  # starting with b or c
+        self.assertEqual(path.get_in(obj), [1,2,5,6])
+        path = WildPath("::2&::3")  # starting with b AND ending with c
+        self.assertEqual(path.get_in(obj), [0, 6])
+        path = WildPath("!(::2|::3)")
+        self.assertEqual(path.get_in(obj), [1,5,7])
+
+    def test_composite_path(self):
+        obj = deepcopy(self.agenda)
+        path = WildPath("items.0|2.?u*&!*ion.!1:")  # last key: second char == 'u' and ends with 'ion'
+        self.assertEqual(path._get_in(obj), [{'subjects': ['purpose of the meeting']}, {'subjects': ['questions']}])
+
+    def test_simple_keys(self):
+        obj = {"a": 1, "b": 2, "c": 3}
+        wildkey_expected = {"*": {"a", "b", "c"},
+                            "(*)": {"a", "b", "c"},
+                            "!(*)":set(),
+                            "(!*)": set(),
+                            "!a": {"b", "c"},
+                            "a*": {"a"},
+                            "!a*": {"b", "c"},
+                            "!(a*)": {"b", "c"},
+                            "a|b": {"a", "b"},
+                            "a&b": set(),
+                            "a|!b": {"a", "c"},
+                            "a&!b": {"a"},
+                            "!(a|b)": {"c"},
+                            "!(a&b)": {"a", "b", "c"}}
+        for wildkey, expected in wildkey_expected.items():
+            path = WildPath(wildkey)
+            self.assertEqual(set(path.get_in(obj).keys()), expected)
+
+
+    def test_simple_indexes(self):
+        obj = tuple(range(3))
+        wildkey_expected = {"*": {0,1,2},
+                            ":": {0,1,2},
+                            "(:)": {0,1,2},
+                            "!(:)":set(),
+                            "(!:)": set(),
+                            "!1": {0, 2},
+                            "1:": {1,2},
+                            "!1:": {0},
+                            "!(1:)": {0},
+                            "1|2": {1, 2},
+                            "1&2": set(),
+                            "1|!2": {0, 1},
+                            "1&!2": {1},
+                            "!(1|2)": {0},
+                            "!(1&2)": {0,1,2}}
+        for wildkey, expected in wildkey_expected.items():
+            path = WildPath(wildkey)
+            self.assertEqual(set(path.get_in(obj)), expected)
+
 
 class TestDocs(TestBase):
 
@@ -490,7 +716,7 @@ class TestDocs(TestBase):
             assert wildpath.get_in(agenda) == ["opening", "progress"]
 
             wildpath = WildPath("items.-1::-1.name")
-            assert wildpath.get_in(agenda) == ["closing", "progress", "opening"]
+            assert wildpath.get_in(agenda) == ["opening", "progress", "closing"]
         except Exception as e:
             self.fail(e)
 
@@ -532,55 +758,12 @@ class TestDocs(TestBase):
         assert Path("a.b.c")[1:] == Path("b.c")
         assert repr(Path("a.b.c")) == "('a', 'b', 'c')"
 
-        #  however (this is not the tuple implementation):
-
+        #  however (this is not the tuple implementation of __str__):
         assert str(Path("a.b.c")) == "a.b.c"
 
 
-class TestOther(unittest.TestCase):
-
-    def test_parse_slice(self):
-        s = parse_slice("0:1")
-        self.assertEqual((s.start, s.stop, s.step), (0,1,None))
-        s = parse_slice(":1")
-        self.assertEqual((s.start, s.stop, s.step), (None,1,None))
-        s = parse_slice("0:1:2")
-        self.assertEqual((s.start, s.stop, s.step), (0,1,2))
-        s = parse_slice(":1:2")
-        self.assertEqual((s.start, s.stop, s.step), (None,1,2))
-        s = parse_slice("::2")
-        self.assertEqual((s.start, s.stop, s.step), (None,None,2))
-        s = parse_slice(":")
-        self.assertEqual((s.start, s.stop, s.step), (None,None,None))
-
-    def test_get_keys(self):
-        self.assertEqual(list(_get_keys("*", ("aa", "ab", "bb"))),
-                         ["aa", "ab", "bb"])
-        self.assertEqual(list(_get_keys("?b", ("aa", "ab", "bb"))),
-                         ["ab", "bb"])
-        self.assertEqual(list(_get_keys("b?", ("aa", "ab", "bb"))),
-                         ["bb"])
-        self.assertEqual(list(_get_keys("*b", ("aa", "ab", "bb"))),
-                         ["ab", "bb"])
-        self.assertEqual(list(_get_keys("!?b", ("aa", "ab", "bb"))),
-                         ["aa"])
-        self.assertEqual(list(_get_keys("!aa|bb", ("aa", "ab", "bb"))),
-                         ["ab"])
-
-    def test_get_indices(self):
-        self.assertEqual(list(_get_indices(":", 5)),
-                         [0, 1, 2, 3, 4])
-        self.assertEqual(list(_get_indices(":2", 5)),
-                         [0, 1])
-        self.assertEqual(list(_get_indices("!:2", 5)),
-                         [2, 3, 4])
-        self.assertEqual(list(_get_indices("-1::-1", 5)),
-                         [4, 3, 2, 1, 0])
-        self.assertEqual(list(_get_indices("!::2", 5)),
-                         [1, 3])
-        self.assertEqual(list(_get_indices("!::-2", 5)),
-                         [3, 1])
-
+if __name__ == "__main__":
+    unittest.main()
 
 
 
