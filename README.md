@@ -62,17 +62,17 @@ The module `wildpaths` has been tested for both `python 2.7` and `python 3.6`. `
 ## Functionality
 The **`Path`** class supports, with e.g. `path = Path("a.0.b")` and `obj = {"a": [{"b": 1}]}`:
 
- - `get_in`: getting items from data structures, as in: `path.get_in(obj)`,
- - `set_in`: setting values in data structures, as in: `path.set_in(obj, value)`,
- - `del_in`: deleting items from data structures, as in: `path.del_in(obj)`,
- - `has_in`: checking whether a value exists at path, as in: `path.has_in(obj)`,
- - `pop_in`: deleting and returning items from data structures, as in: `path.pop_in(obj)`.
+ - `get_in`: getting items from data structures: `path.get_in(obj)`,
+ - `set_in`: setting values in data structures: `path.set_in(obj, value)`,
+ - `del_in`: deleting items from data structures: `path.del_in(obj)`,
+ - `has_in`: checking whether a value exists at path: `path.has_in(obj)`,
+ - `pop_in`: deleting and returning items from data structures: `path.pop_in(obj)`.
  
  It also has some iterators that run through all paths and values in a data structure:
   
- - `Path.items(obj)`: iterator over all `(path, value)` tuples in the objects, 
- - `Path.paths(obj)`: iterator over all paths in the objects, 
- - `Path.values(obj)`: iterator over all values in the objects. 
+ - `Path.items(obj)`: iterator over all `(path, value)` tuples in the object, 
+ - `Path.paths(obj)`: iterator over all paths in the object, 
+ - `Path.values(obj)`: iterator over all values in the object. 
  
 The **`WildPath`** class supports the same functionality as `Path`, but with the following additions:
 
