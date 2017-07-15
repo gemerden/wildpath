@@ -82,7 +82,7 @@ The **`WildPath`** class supports the same functionality as `Path`, but with the
  
 Note that:
  - The iterator methods of `WildPath` return paths of type `WildPath`, instead of `Path`,
- - If a key, index or attribute is not found in the data, a `KeyError`, `IndexError` or `AttributeError` will be raised,
+ - If a key or index is not found in the data, a `KeyError` or `IndexError` will be raised,
  - `get_in` can take a `default` parameter, that is returned if no value exists at the path location: `path.get_in(obj, None)`,
  - Using wildpaths will return instances of the classes in the original object for mappings and sequences. For (other) python objects it will return a `dict`. For example `WildPath(":2").get_in((1, 2, 3))` will return `(1, 2)`.
 
