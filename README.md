@@ -2,7 +2,7 @@
 
 # WildPath
 
-A path abstraction to handle composite (e.g. JSON) objects in python.
+A path abstraction to access items in composite (e.g. JSON) objects in python.
 
 ## Introduction
 
