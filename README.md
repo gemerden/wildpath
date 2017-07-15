@@ -206,7 +206,8 @@ assert wildpath.get_in(agenda) == ["opening", "progress", "closing"]
 ```
 **Notes**:
  - WildPath also supports attribute lookup in nested objects, list attributes in objects, etc.,
- - All the examples of `WildPath.get_in` also work for `set_in`, `del_in`, `pop_in` and `has_in`.
+ - All the examples of `WildPath.get_in` also work for `set_in`, `del_in`, `pop_in` and `has_in`,
+ - In `wildpath.set_in(obj, value)`, value can either be a single value, or a data structure with the same structure as the result of `wildpath.get_in(obj)`.
 
 ### Iterators
 The Path classes also have some iterator classmethods defined:
