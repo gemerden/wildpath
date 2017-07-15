@@ -1,3 +1,5 @@
+![Travis](https://travis-ci.org/gemerden/wildpath.svg?branch=master)
+
 # WildPath
 
 A path abstraction to handle composite (e.g. JSON) objects in python.
