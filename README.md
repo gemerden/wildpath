@@ -74,9 +74,9 @@ The **`Path`** class supports, with e.g. `path = Path("a.0.b")` and `obj = {"a":
  
 The **`WildPath`** class supports the same functionality as `Path`, but with the following additions:
 
- - Keys referring to mappings (e.g. `dict`) or python class objects can contain wildcards: `WildPath("*.a*.b?")`, with `*` standing for any string and `?` for any single character. Wildcards use standard python `fnmatch.fnmatchcase`,
+ - Keys referring to mappings (e.g. `dict`) or python class objects can contain wildcards: `WildPath("*.a*.b?")`, with `*` for any string and `?` for any single character. Wildcards use the standard python `fnmatch.fnmatchcase`,
  - Keys referring to sequences (e.g. `list`, `tuple`) can contain slices: `WildPath("1:3.::2")`, with `:` from standard python slice notation `some_list[start:stop:step]`,
- - All keys can contain boolean logic, using `&` for AND, `|` for OR and `!` for NOT: `WildPath("a*&!*b")`: keys starting with `a` and not ending with `b`.
+ - All keys can contain boolean logic, using `&` for AND, `|` for OR and `!` for NOT: `WildPath("a*&!*b")`: keys starting with `'a'` and not ending with `'b'`.
  
 Note that:
  - The iterator methods of `WildPath` return paths of type `WildPath`, instead of `Path`,
