@@ -1,10 +1,9 @@
-import json
 import unittest
 
 from copy import deepcopy
 
-from samples.google_route import google_route
-from samples.simple import agenda
+from tests.samples import agenda
+from tests.samples import google_route
 from wildpath.keyparser import KeyParser
 from wildpath.paths import Path, WildPath
 
@@ -133,7 +132,7 @@ class TestPath(TestBase):
             Path("e.1.a").get_in(s)
         with self.assertRaises(IndexError):
             Path("e.2.a").get_in(s)
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(KeyError):
             Path("f.3").get_in(s)
 
 class TestWildPath(TestBase):
@@ -376,14 +375,14 @@ class TestWildPath(TestBase):
     def test_exceptions(self):
         s = deepcopy(self.simple)
         with self.assertRaises(KeyError):
-            Path("e.1.a").get_in(s)
+            WildPath("e.1.a").get_in(s)
         with self.assertRaises(IndexError):
-            Path("e.2.a").get_in(s)
-        with self.assertRaises(AttributeError):
-            Path("f.3").get_in(s)
+            WildPath("e.2.a").get_in(s)
+        with self.assertRaises(KeyError):
+            WildPath("f.3").get_in(s)
 
     def test_string_like_values(self):
-        items = list(Path.items(self.agenda))
+        items = list(WildPath.items(self.agenda))
         self.assertTrue(all(len(item[0]) <= 4 for item in items))  # strings are not entered/iterated over characters
         path = WildPath("meeting")
         try:
