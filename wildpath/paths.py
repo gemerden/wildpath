@@ -129,7 +129,7 @@ class Path(BasePath):
             elif isinstance(obj, Sequence):
                 obj = obj[int(key)]
             else:
-                obj = getattr(obj, key)
+                obj = obj.__dict__[key]
         return obj
 
     def _set_in(self, obj, value):
@@ -140,7 +140,7 @@ class Path(BasePath):
         elif isinstance(obj, MutableSequence):
             obj[int(self[-1])] = value
         else:
-            setattr(obj, self[-1], value)
+            obj.__dict__[self[-1]] = value
 
     def _del_in(self, obj):
         """deletes item at wildpath 'self' from the 'obj'"""
@@ -150,7 +150,7 @@ class Path(BasePath):
         elif isinstance(obj, MutableSequence):
             del obj[int(self[-1])]
         else:
-            delattr(obj, self[-1])
+            del obj.__dict__[self[-1]]
 
 
 def _get_with_key(value, k):
@@ -190,7 +190,7 @@ class WildPath(BasePath):
         return self
 
     def _get_in(self, obj, _preprocessed=_preprocessed):
-        """returns item at wildpath 'self' from the 'obj'"""
+        """returns item(s) at wildpath 'self' from the 'obj'"""
         if not len(self):
             return obj
         key = self[0]
