@@ -207,7 +207,7 @@ assert wildpath.get_in(agenda) == ["opening", "progress", "closing"]
 **Notes**:
  - WildPath also supports attribute lookup in nested objects, list attributes in objects, etc.,
  - All the examples of `WildPath.get_in` also work for `set_in`, `del_in`, `pop_in` and `has_in`,
- - In `wildpath.set_in(obj, value)`, value can either be a single value, or a data structure with the same structure as the result of `wildpath.get_in(obj)`.
+ - In `wildpath.set_in(obj, value)`, value can either be a single value (which will be used to set all target values), or a data structure with the same 'shape' as the result of `wildpath.get_in(obj)`.
 
 ### Iterators
 The Path classes also have some iterator classmethods defined:
@@ -284,7 +284,7 @@ for path, value in Path.items(sample, all=True):
  - Currently these iterators cannot handle circular relationships. This will result in a RuntimeError (recursion depth) ,
  - The iterators return generators, not lists or dicts. To do this, use `list(Path.items(obj))`, `dict(Path.items(obj))`, 
  - These iterators can also be useful the get an alternative view on a datastructure: a starting point to define WildPaths,
- - To turn the items into a `dict` with string keys, use `dct = {str(p): v for p, v in Path.items(obj)}`,
+ - To turn the items into a `dict` with string keys, use `dct = {str(p): v for p, v in Path.items(obj)}`.
  
 ### Path manipulations
 `Path` and `WildPath` are subclasses of tuple (via BasePath), so (almost) all tuple methods can be used with both, e.g.:
@@ -295,7 +295,7 @@ assert Path("a.b") + Path("c") == Path("a.b.c")
 assert Path("a.b.c")[1:] == Path("b.c")
 assert repr(Path("a.b.c")) == "('a', 'b', 'c')"
 
-# however, this is not the tuple implementation for __str__:
+# however, tuple.__str__ is overridden to return the input string for the class constructor for easy (de)serialization:
 
 assert str(Path("a.b.c")) == "a.b.c"
 
