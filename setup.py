@@ -7,5 +7,5 @@ setup(name='wildpath',
       description='data structure access utility',
       author='Lars van Gemerden',
       author_email='lars@rational-it.com',
-      packages=['tests', 'wildpath'],
+      packages=['wildpath'],
 )
