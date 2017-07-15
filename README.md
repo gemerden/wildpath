@@ -57,7 +57,7 @@ Essentially the function definition is replaced by a string, using `WildPath.get
 ## Prerequisites
 The module `wildpaths` has been tested for both `python 2.7` and `python 3.6`. `wildpath` uses `boolean.py` (`pip install boolean.py`). Note the `.py`.
   
-##Functionality
+## Functionality
 The **`Path`** class supports, with e.g. `path = Path("a.0.b")` and `obj = {"a": [{"b": 1}]}`:
 
  - `get_in`: getting items from data structures, as in: `path.get_in(obj)`,
