@@ -12,7 +12,7 @@ This module is intended primarily as a practical tool to access data in complex 
   - `WildPath` allows wildcards and boolean logic (and, or, not) in paths to get, set and delete to multiple items in one call,
   -  Both have iterators (in the common baseclass) to run through all paths and values in a data structure.
 
-As an typical example we take the JSON response of a call to `maps.googleapis.com` for the route between 2 addresses. The response is about 400 lines of JSON if nicely formatted. However we will only be interested in the geo_locations of the individual steps (turn-by-turn instructions) of the route.
+As an typical example we take the JSON response of a call to `maps.googleapis.com` for the route between 2 addresses. The response is over 390 lines of JSON if nicely formatted. However we will only be interested in the geo_locations of the individual steps (turn-by-turn instructions) of the route.
 
 In normal code this would look something like (with `json_route` the result from the call to the google API):
 ```python
