@@ -159,8 +159,8 @@ assert wildpath.get_in(agenda) == ["opening", "progress"]
 wildpath = WildPath("items.!0:2.name")  # slices can be negated
 assert wildpath.get_in(agenda) == [ "closing"]
 
-wildpath = WildPath("items.-1::-1.name")  # extended slicing also works, in this case reversing the order
-assert wildpath.get_in(agenda) == [ "closing", "progress", "opening"]
+wildpath = WildPath("items.-1::-1.name")  # extended slicing also works, but orders are not reversed for a negative step parameter
+assert wildpath.get_in(agenda) == ["opening", "progress", "closing"]
 ```
 **Notes**:
  - WildPath also supports attribute lookup in nested objects, list attributes in objects, etc.,

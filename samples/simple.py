@@ -1,5 +1,3 @@
-import json
-
 agenda = {
     "meeting": "progress on project X",
     "date": "2017-8-14",
