@@ -9,7 +9,7 @@ with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(name='wildpath',
-      version='0.1.1',
+      version='0.1.3',
       description='easy data structure access utility',
       long_description=long_description,
       author='Lars van Gemerden',
