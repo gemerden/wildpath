@@ -57,7 +57,7 @@ Essentially the function definition is replaced by a string, using `WildPath.get
  - A `Path` or `WildPath` is easily serializable (`str(Path("a.b.c")) == "a.b.c"`), where a function definition is not.
 
 ## Prerequisites
-The module `wildpaths` has been tested for both `python 2.7` and `python 3.3 - 3.6`. `wildpath` uses `boolean.py` (`pip install boolean.py`). Note the `.py`.
+The module can be installed with `pip install wildpath`. It is tested for both python 2.7 and python 3.3 to 3.6.
   
 ## Functionality
 The **`Path`** class supports, with e.g. `path = Path("a.0.b")` and `obj = {"a": [{"b": 1}]}`:
