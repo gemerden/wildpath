@@ -15,6 +15,7 @@ This module is intended primarily as a practical tool to access data in complex 
 As an typical example we take the JSON response of a call to `maps.googleapis.com` for the route between 2 addresses. The response is over 390 lines of JSON if nicely formatted. However we will only be interested in the geo_locations of the individual steps (turn-by-turn instructions) of the route.
 
 In normal code this would look something like (with `json_route` the result from the call to the google API):
+
 ```python
 def get_geo_locations(json_route):
     geo_locs = []
@@ -57,9 +58,11 @@ Essentially the function definition is replaced by a string, using `WildPath.get
  - A `Path` or `WildPath` is easily serializable (`str(Path("a.b.c")) == "a.b.c"`), where a function definition is not.
 
 ## Prerequisites
+
 The module can be installed with `pip install wildpath`. It is tested for both python 2.7 and python 3.3 to 3.6.
   
 ## Functionality
+
 The **`Path`** class supports, with e.g. `path = Path("a.0.b")` and `obj = {"a": [{"b": 1}]}`:
 
  - `get_in`: getting items from data structures: `path.get_in(obj)`,
@@ -81,6 +84,7 @@ The **`WildPath`** class supports the same functionality as `Path`, but with the
  - All keys can contain boolean logic, using `&` for AND, `|` for OR and `!` for NOT: `WildPath("a*&!*b")`: keys starting with `'a'` and not ending with `'b'`.
  
 Note that:
+
  - The iterator methods of `WildPath` return paths of type `WildPath`, instead of `Path`,
  - If a key or index is not found in the data, a `KeyError` or `IndexError` will be raised,
  - `get_in` can take a `default` parameter, that is returned if no value exists at the path location: `path.get_in(obj, None)`,
@@ -90,7 +94,7 @@ Note that:
 ## Examples
 Starting with this example structure of an agenda item in some tool:
  
- ```python
+```python
 agenda = {
     "meeting": "progress on project X",
     "date": "2017-8-14",
@@ -119,6 +123,7 @@ agenda = {
 
 
 ### class `Path`
+
 The 'Path' class let you get, set or delete items at a specific location:
 
 ```python
@@ -138,6 +143,7 @@ assert path.has_in(agenda) == False  # has_in checks the presence of a value at 
 ```
  
 ### class `WildPath`
+
 `WildPath` supports the same API as `Path`, but additionally lets you use wildcards and slicing in the path definition to access multiple items in the structure (the `Path` class is there because for single lookups it is substantially faster):
 
 ```python
@@ -158,6 +164,7 @@ wildpath.del_in(agenda)  # delete all the items at wildpath from the structure
 assert wildpath.has_in(agenda) == False  # `has_in` checks if all the items at wildpath are there
 ```
 To get the start and end time of the meeting:
+
 ```python
 wildpath = WildPath("*_time")
 assert wildpath.get_in(agenda) == {"start_time": "10:00", "end_time": "11:00"}
@@ -205,6 +212,7 @@ wildpath = WildPath("items.-1::-1.name")  # extended slicing also works, but ord
 assert wildpath.get_in(agenda) == ["opening", "progress", "closing"]
 ```
 **Notes**:
+
  - WildPath also supports attribute lookup in nested objects, list attributes in objects, etc.,
  - All the examples of `WildPath.get_in` also work for `set_in`, `del_in`, `pop_in` and `has_in`,
  - In `wildpath.set_in(obj, value)`, value can either be a single value (which will be used to set all target values), or a data structure with the same 'shape' as the result of `wildpath.get_in(obj)`.
@@ -218,7 +226,9 @@ from wildpath.paths import Path
 for path, value in Path.items(agenda):
     print(" ".join([str(path), ":", value]))
 ```
+
 prints
+
 ```text
 date : 2017-8-14
 end_time : 11:00
@@ -238,13 +248,16 @@ To create an alternative representation of the datastructure:
 D = {str(path): value for path, value in Path.items(agenda)}
 ```
 Path.items() has an optional argument `all` that if set to `True` will iterate over all path, value combination, including intermediary paths:
+
 ```python
 from wildpath.paths import Path
 
 for path, value in Path.items(agenda, all=True):
     print(" ".join([str(path), ":", value]))
 ```
+
 will print:
+
 ```text
 date : 2017-8-14
 end_time : 11:00
@@ -261,7 +274,9 @@ items.0.subjects.0 : purpose of the meeting
 
 etc...
 ```
+
 With the `Path.items(obj, all=True)` and the ordering the items are produced, more manipulations are possible, e.g.:
+
 ````python
 from datetime import datetime
 from wildpath.paths import Path
@@ -281,13 +296,16 @@ for path, value in Path.items(sample, all=True):
 ````
 
 **Notes**:
+
  - Currently these iterators cannot handle circular relationships. This will result in a RuntimeError (recursion depth) ,
  - The iterators return generators, not lists or dicts. To do this, use `list(Path.items(obj))`, `dict(Path.items(obj))`, 
  - These iterators can also be useful the get an alternative view on a datastructure: a starting point to define WildPaths,
  - To turn the items into a `dict` with string keys, use `dct = {str(p): v for p, v in Path.items(obj)}`.
  
 ### Path manipulations
+
 `Path` and `WildPath` are subclasses of tuple (via BasePath), so (almost) all tuple methods can be used with both, e.g.:
+
 ```python
 from wildpath.paths import Path
 
@@ -304,13 +322,15 @@ Note that some methods (like `__add__` and `path[1:]`) are overridden to return 
  
  
 ## Limitations
+
 Because of the characters used to parse the paths, some keys in the target datastructures will cause the system to fail:
+
  - In python objects Path and WildPath will lookup keys in the instance `__dict__`. This means that some constructions like `property` and overridden `__getattr__` will not be taken into account,
  - for `Path` and `WildPath`: keys in Mappings (e.g. dict, OrderedDict) cannot contain a `.`,
  - for `WildPath`: keys in Mappings cannot contain the characters `*`, `?`, `!`, `|` and `&`, or to be precise, if they are present, they cannot be used in paths for lookups,
  - note that the `.` separator can easily be replaced in a subclass, allowing paths like `"a/b/3/x"` instead of `"a.b.3.x"` (and therefore path `"a/b.c/3/x"` with `b.c` a dictionary key):
  
- ```python
+```python
 from wildpath.paths import Path, WildPath
  
 class SlashPath(Path):
