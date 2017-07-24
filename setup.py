@@ -14,7 +14,7 @@ except (IOError, ImportError):
 
 setup(
     name='wildpath',
-    version='0.1.5',
+    version='0.1.7',
     description='easy data structure access utility',
     long_description=long_description,
     author='Lars van Gemerden',
