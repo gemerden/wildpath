@@ -8,7 +8,7 @@ A path abstraction to access items in composite (e.g. JSON) objects in python.
 
 This module is intended primarily as a practical tool to access data in complex data structures. Especially accessing multiple items usually requires for-loops or other constructs and there is no straightforward way to pass nested locations as single parameters. This module solves this problem by introdicing 2 classes:
  
-  - `Path` is optimized for speed, allowing to get, set and delete single items in the data structure,
+  - `Path` allows to get, set and delete single items in the data structure; it is optimized for speed,
   - `WildPath` does the same and allows wildcards and boolean logic (and, or, not) in paths to get, set and delete to multiple items in one call,
   -  Both have iterators (in the common baseclass) to run through all paths and values in a data structure.
 
@@ -32,7 +32,7 @@ Using `WildPath` the same result is obtained by:
 ```python
 location_path = WildPath("routes.0.legs.0.steps.*.*_location")
 
-geo_locations = location_path.get_in(json_route)
+geo_locations = location_path.get_in(json_route)  # note the path.get_in(obj) syntax versus the usual obj.get(key)
 ```
 
 Both produce the same list of items:
@@ -200,17 +200,7 @@ assert WildPath("!item?").get_in({"item1": "chair", "item2": "table", "count": 2
 
 assert WildPath("!(a|b)") != WildPath("!a|b")
 ```
-Similarly it supports slices as wildcard like path-elements 
-```python
-wildpath = WildPath("items.0:2.name")
-assert wildpath.get_in(agenda) == ["opening", "progress"]
 
-wildpath = WildPath("items.!0:2.name")  # slices can be negated
-assert wildpath.get_in(agenda) == [ "closing"]
-
-wildpath = WildPath("items.-1::-1.name")  # extended slicing also works, but orders are not reversed for a negative step parameter
-assert wildpath.get_in(agenda) == ["opening", "progress", "closing"]
-```
 **Notes**:
 
  - WildPath also supports attribute lookup in nested objects, list attributes in objects, etc.,
