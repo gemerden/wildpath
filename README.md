@@ -288,6 +288,7 @@ for path, value in Path.items(sample, all=True):
 **Notes**:
 
  - Currently these iterators cannot handle circular relationships. This will result in a RuntimeError (recursion depth) ,
+ - To iterate over attributes in objects, callables and attributes starting en ending with "__" are excluded,
  - The iterators return generators, not lists or dicts. To do this, use `list(Path.items(obj))`, `dict(Path.items(obj))`, 
  - These iterators can also be useful the get an alternative view on a datastructure: a starting point to define WildPaths,
  - To turn the items into a `dict` with string keys, use `dct = {str(p): v for p, v in Path.items(obj)}`.
@@ -315,7 +316,6 @@ Note that some methods (like `__add__` and `path[1:]`) are overridden to return 
 
 Because of the characters used to parse the paths, some keys in the target datastructures will cause the system to fail:
 
- - In python objects Path and WildPath will lookup keys in the instance `__dict__`. This means that some constructions like `property` and overridden `__getattr__` will not be taken into account,
  - for `Path` and `WildPath`: keys in Mappings (e.g. dict, OrderedDict) cannot contain a `.`,
  - for `WildPath`: keys in Mappings cannot contain the characters `*`, `?`, `!`, `|` and `&`, or to be precise, if they are present, they cannot be used in paths for lookups,
  - note that the `.` separator can easily be replaced in a subclass, allowing paths like `"a/b/3/x"` instead of `"a.b.3.x"` (and therefore path `"a/b.c/3/x"` with `b.c` a dictionary key):
