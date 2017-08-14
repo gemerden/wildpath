@@ -132,7 +132,7 @@ class TestPath(TestBase):
             Path("e.1.a").get_in(s)
         with self.assertRaises(IndexError):
             Path("e.2.a").get_in(s)
-        with self.assertRaises(KeyError):
+        with self.assertRaises(AttributeError):
             Path("f.3").get_in(s)
 
 class TestWildPath(TestBase):
@@ -378,7 +378,7 @@ class TestWildPath(TestBase):
             WildPath("e.1.a").get_in(s)
         with self.assertRaises(IndexError):
             WildPath("e.2.a").get_in(s)
-        with self.assertRaises(KeyError):
+        with self.assertRaises(AttributeError):
             WildPath("f.3").get_in(s)
 
     def test_string_like_values(self):
@@ -647,6 +647,37 @@ class TestLogicPath(TestBase):
             self.assertEqual(set(path.get_in(obj)), expected)
 
 
+class testVarious(unittest.TestCase):
+
+    def test_property(self):
+        class Some(object):
+            def __init__(self):
+                self._prop = "prop"
+
+            @property
+            def prop(self):
+                return self._prop
+
+            @prop.setter
+            def prop(self, string):
+                self._prop = string
+
+            @prop.deleter
+            def prop(self):
+                del self._prop
+
+        some = Some()
+
+        self.assertEqual(Path("prop").get_in(some), "prop")
+        self.assertEqual(WildPath("prop").get_in(some), "prop")
+        self.assertEqual(WildPath("!_*").get_in(some), {'prop': 'prop'})
+        self.assertEqual(dict(Path.items(some)), {('prop',): 'prop', ('_prop',): 'prop'})
+        Path("prop").set_in(some, "drop")
+        self.assertEqual(Path("prop").get_in(some), "drop")
+        Path("prop").del_in(some)
+        self.assertFalse(Path("prop").has_in(some))
+
+
 class TestDocs(TestBase):
 
     def test_path_example(self):
@@ -763,7 +794,3 @@ class TestDocs(TestBase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-
-

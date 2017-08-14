@@ -22,6 +22,18 @@ class BasePath(tuple):
     """
     sep = "."
 
+    @classmethod
+    def get_object_items(cls, obj):
+        for name in dir(obj):
+            if not (name.startswith("__") and name.endswith("__")):
+                attr = getattr(obj, name)
+                if not callable(attr):
+                    yield name, attr
+
+    @classmethod
+    def get_object_dict(cls, obj):
+        return {name: getattr(obj, name) for name in dir(obj) if not (name.startswith("__") and name.endswith("__"))
+                and not callable(getattr(obj, name))}
 
     @classmethod
     def items(cls, obj, all=False, _path=None):
@@ -42,7 +54,7 @@ class BasePath(tuple):
                 for sub_path, sub_obj in cls.items(sub_obj, all, _path + cls(str(index))):
                     yield sub_path, sub_obj
         elif hasattr(obj, "__dict__"):
-            for key, sub_obj in obj.__dict__.items():
+            for key, sub_obj in cls.get_object_items(obj):
                 for sub_path, sub_obj in cls.items(sub_obj, all, _path + cls(key)):
                     yield sub_path, sub_obj
         elif not all:
@@ -129,7 +141,7 @@ class Path(BasePath):
             elif isinstance(obj, Sequence):
                 obj = obj[int(key)]
             else:
-                obj = obj.__dict__[key]
+                obj = getattr(obj, key)
         return obj
 
     def _set_in(self, obj, value):
@@ -140,7 +152,7 @@ class Path(BasePath):
         elif isinstance(obj, MutableSequence):
             obj[int(self[-1])] = value
         else:
-            obj.__dict__[self[-1]] = value
+            setattr(obj, self[-1], value)
 
     def _del_in(self, obj):
         """deletes item at wildpath 'self' from the 'obj'"""
@@ -150,7 +162,7 @@ class Path(BasePath):
         elif isinstance(obj, MutableSequence):
             del obj[int(self[-1])]
         else:
-            del obj.__dict__[self[-1]]
+            delattr(obj, self[-1])
 
 
 def _get_with_key(value, k):
@@ -201,14 +213,16 @@ class WildPath(BasePath):
                 elif isinstance(obj, Sequence):
                     return obj.__class__(obj[i] for i in _preprocessed[key](*range(len(obj))))
                 else:
-                    return {k: obj.__dict__[k] for k in _preprocessed[key](*obj.__dict__)}
+                    obj_dict = self.get_object_dict(obj)
+                    return {k: obj_dict[k] for k in _preprocessed[key](*obj_dict)}
             else:
                 if isinstance(obj, Mapping):
                     return obj.__class__((k, self[1:]._get_in(obj[k])) for k in _preprocessed[key](*obj))
                 elif isinstance(obj, Sequence):
                     return obj.__class__(self[1:].get_in(obj[i]) for i in _preprocessed[key](*range(len(obj))))
                 else:
-                    return {k: self[1:]._get_in(obj.__dict__[k]) for k in _preprocessed[key](*obj.__dict__)}
+                    obj_dict = self.get_object_dict(obj)
+                    return {k: self[1:]._get_in(obj_dict[k]) for k in _preprocessed[key](*obj_dict)}
         else:
             if len(self) == 1:
                 if isinstance(obj, Mapping):
@@ -216,14 +230,14 @@ class WildPath(BasePath):
                 elif isinstance(obj, Sequence):
                     return obj[int(key)]
                 else:
-                    return obj.__dict__[key]
+                    return getattr(obj, key)
             else:
                 if isinstance(obj, Mapping):
                     return self[1:].get_in(obj[key])
                 elif isinstance(obj, Sequence):
                     return self[1:].get_in(obj[int(key)])
                 else:
-                    return self[1:].get_in(obj.__dict__[key])
+                    return self[1:].get_in(getattr(obj, key))
 
 
     def _set_in(self, obj, value, get_with_key=_get_with_key,  # speed up function access
@@ -240,8 +254,8 @@ class WildPath(BasePath):
                     for i, j in enumerate(_preprocessed[key](*range(len(obj)))):
                         obj[j] = get_with_index(value, i)
                 else:
-                    for k in _preprocessed[key](*obj.__dict__):
-                        obj.__dict__[k] = get_with_key(value, k)
+                    for k in _preprocessed[key](*self.get_object_dict(obj)):
+                        setattr(obj, k, get_with_key(value, k))
             else:
                 if isinstance(obj, MutableMapping):
                     for k in _preprocessed[key](*obj):
@@ -250,8 +264,9 @@ class WildPath(BasePath):
                     for i, j in enumerate(_preprocessed[key](*range(len(obj)))):
                         self[1:]._set_in(obj[j], get_with_index(value, i))
                 else:
-                    for k in _preprocessed[key](*obj.__dict__):
-                        self[1:]._set_in(obj.__dict__[k], get_with_key(value, k))
+                    obj_dict = self.get_object_dict(obj)
+                    for k in _preprocessed[key](*obj_dict):
+                        self[1:]._set_in(obj_dict[k], get_with_key(value, k))
         else:
             if len(self) == 1:
                 if isinstance(obj, MutableMapping):
@@ -259,14 +274,14 @@ class WildPath(BasePath):
                 elif isinstance(obj, MutableSequence):
                     obj[int(key)] = value
                 else:
-                    obj.__dict__[key] = value
+                    setattr(obj, key, value)
             else:
                 if isinstance(obj, MutableMapping):
                     self[1:]._set_in(obj[key], _get_with_key(value, key))
                 elif isinstance(obj, MutableSequence):
                     self[1:]._set_in(obj[int(key)], _get_with_index(value, int(key)))
                 else:
-                    self[1:]._set_in(obj.__dict__[key], _get_with_key(value, key))
+                    self[1:]._set_in(getattr(obj, key), _get_with_key(value, key))
 
 
     def _del_in(self, obj, _preprocessed=_preprocessed):
@@ -282,8 +297,8 @@ class WildPath(BasePath):
                         obj[i] = _marker  # marked for deletion
                     obj[:] = [v for v in obj if v is not _marker]
                 else:
-                    for k in _preprocessed[key](*obj.__dict__):
-                        del obj.__dict__[k]
+                    for k in _preprocessed[key](*self.get_object_dict(obj)):
+                        delattr(obj, k)
             else:
                 if isinstance(obj, MutableMapping):
                     for k in _preprocessed[key](*obj):
@@ -292,8 +307,9 @@ class WildPath(BasePath):
                     for i in _preprocessed[key](*range(len(obj))):
                         self[1:]._del_in(obj[i])
                 else:
-                    for k in _preprocessed[key](*obj.__dict__):
-                        self[1:]._del_in(obj.__dict__[k])
+                    obj_dict = self.get_object_dict(obj)
+                    for k in _preprocessed[key](*obj_dict):
+                        self[1:]._del_in(obj_dict[k])
         else:
             if len(self) == 1:
                 if isinstance(obj, MutableMapping):
@@ -301,14 +317,14 @@ class WildPath(BasePath):
                 elif isinstance(obj, MutableSequence):
                     del obj[int(key)]
                 else:
-                    del obj.__dict__[key]
+                    delattr(obj, key)
             else:
                 if isinstance(obj, MutableMapping):
                     self[1:]._del_in(obj[key])
                 elif isinstance(obj, MutableSequence):
                     self[1:]._del_in(obj[int(key)])
                 else:
-                    self[1:]._del_in(obj.__dict__[key])
+                    self[1:]._del_in(getattr(obj, key))
 
 
 
