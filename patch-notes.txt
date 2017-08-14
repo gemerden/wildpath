@@ -1,0 +1,7 @@
+version 0.1.7:
+
+ - initial version
+
+version 0.2.0
+
+ - object attribute access is now based on dir(), getattr(), setattr(), delattr() instead of direct obj.__dict__ access.
