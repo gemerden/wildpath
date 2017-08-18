@@ -693,8 +693,8 @@ class testVarious(unittest.TestCase):
         class Test(object):
             desc = TestDescriptor()
 
-            def __init__(self, attr):
-                self.attr = attr
+            def __init__(self, desc):
+                self.desc = desc
 
         test = Test("attribute")
 
