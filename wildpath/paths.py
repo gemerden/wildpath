@@ -1,16 +1,10 @@
-import sys
 from copy import copy
-from fnmatch import fnmatchcase
 from collections import Mapping, Sequence, MutableMapping, MutableSequence
 
 from wildpath.keyparser import KeyParser
+from wildpath.tools import value_sequence_types, flatten
 
 __author__ = "Lars van Gemerden"
-
-try:
-    value_sequence_types = (basestring, bytearray, bytes, buffer)
-except NameError:
-    value_sequence_types = (str, bytearray, bytes)
 
 
 _marker = object()
@@ -86,12 +80,7 @@ class BasePath(tuple):
         return self.__getitem__(slice(i, j))
 
     def get_in(self, obj, default=_marker):
-        try:
-            return self._get_in(obj)
-        except (IndexError, KeyError, AttributeError):
-            if default is _marker:
-                raise
-            return default
+        return self._get_in(obj, default)
 
     def set_in(self, obj, value):
         return self._set_in(obj, value)
@@ -99,7 +88,7 @@ class BasePath(tuple):
     def del_in(self, obj):
         return self._del_in(obj)
 
-    def _get_in(self, obj):
+    def _get_in(self, obj, default=_marker):
         raise NotImplementedError
 
     def _set_in(self, obj, value):
@@ -133,16 +122,22 @@ class Path(BasePath):
     Fast implementation of the baseclass that does not allow wildcards and slicing.
     """
 
-    def _get_in(self, obj):
+    def _get_in(self, obj, default=_marker):
         """returns item at wildpath 'self' from the 'obj'"""
-        for key in self:
-            if isinstance(obj, Mapping):
-                obj = obj[key]
-            elif isinstance(obj, Sequence):
-                obj = obj[int(key)]
-            else:
-                obj = getattr(obj, key)
-        return obj
+        try:
+            for key in self:
+                if isinstance(obj, Mapping):
+                    obj = obj[key]
+                elif isinstance(obj, Sequence):
+                    obj = obj[int(key)]
+                else:
+                    obj = getattr(obj, key)
+        except (KeyError, IndexError, AttributeError):
+            if default is _marker:
+                raise
+            return default
+        else:
+            return obj
 
     def _set_in(self, obj, value):
         """sets item at wildpath 'self' from the 'obj' to 'value'"""
@@ -192,16 +187,22 @@ class WildPath(BasePath):
 
     _preprocessed = {}
 
-    def __new__(cls, string_or_seq=None, parse=algebra.parse, tokens=tokens):
+    def __new__(cls, string_or_seq=None, _parse=algebra.parse, _tokens=tokens):
         self = super(WildPath, cls).__new__(cls, string_or_seq)
         preprocessed = cls._preprocessed
         for wild_key in self:
             #  if wild_cards or slicing is used, multiple results are returned and the boolean logic is applied
-            if wild_key not in preprocessed and any(t in wild_key for t in tokens):
-                preprocessed[wild_key] = parse(wild_key, simplify=True)
+            if wild_key not in preprocessed and any(t in wild_key for t in _tokens):
+                preprocessed[wild_key] = _parse(wild_key, simplify=True)
         return self
 
-    def _get_in(self, obj, _preprocessed=_preprocessed):
+    def get_in(self, obj, default=_marker, flat=False):
+        result = super(WildPath, self).get_in(obj, default)
+        if flat:
+            return flatten(result)
+        return result
+
+    def _get_in(self, obj, default=_marker, _preprocessed=_preprocessed):
         """returns item(s) at wildpath 'self' from the 'obj'"""
         if not len(self):
             return obj
@@ -217,27 +218,32 @@ class WildPath(BasePath):
                     return {k: obj_dict[k] for k in _preprocessed[key](*obj_dict)}
             else:
                 if isinstance(obj, Mapping):
-                    return obj.__class__((k, self[1:]._get_in(obj[k])) for k in _preprocessed[key](*obj))
+                    return obj.__class__((k, self[1:]._get_in(obj[k], default)) for k in _preprocessed[key](*obj))
                 elif isinstance(obj, Sequence):
-                    return obj.__class__(self[1:].get_in(obj[i]) for i in _preprocessed[key](*range(len(obj))))
+                    return obj.__class__(self[1:].get_in(obj[i], default) for i in _preprocessed[key](*range(len(obj))))
                 else:
                     obj_dict = self.get_object_dict(obj)
-                    return {k: self[1:]._get_in(obj_dict[k]) for k in _preprocessed[key](*obj_dict)}
+                    return {k: self[1:]._get_in(obj_dict[k], default) for k in _preprocessed[key](*obj_dict)}
         else:
             if len(self) == 1:
-                if isinstance(obj, Mapping):
-                    return obj[key]
-                elif isinstance(obj, Sequence):
-                    return obj[int(key)]
-                else:
-                    return getattr(obj, key)
+                try:
+                    if isinstance(obj, Mapping):
+                        return obj[key]
+                    elif isinstance(obj, Sequence):
+                        return obj[int(key)]
+                    else:
+                        return getattr(obj, key)
+                except (KeyError, IndexError, AttributeError):
+                    if default is _marker:
+                        raise
+                    return default
             else:
                 if isinstance(obj, Mapping):
-                    return self[1:].get_in(obj[key])
+                    return self[1:]._get_in(obj[key], default)
                 elif isinstance(obj, Sequence):
-                    return self[1:].get_in(obj[int(key)])
+                    return self[1:]._get_in(obj[int(key)], default)
                 else:
-                    return self[1:].get_in(getattr(obj, key))
+                    return self[1:]._get_in(getattr(obj, key), default)
 
 
     def _set_in(self, obj, value, get_with_key=_get_with_key,  # speed up function access
