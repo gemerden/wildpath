@@ -677,6 +677,39 @@ class testVarious(unittest.TestCase):
         Path("prop").del_in(some)
         self.assertFalse(Path("prop").has_in(some))
 
+    def test_descriptor(self):
+        class TestDescriptor(object):
+            def __get__(self, obj, cls):
+                if obj is None:
+                    return cls
+                return obj.attr
+
+            def __set__(self, obj, value):
+                obj.attr = value
+
+            def __delete__(self, obj):
+                del obj.attr
+
+        class Test(object):
+            desc = TestDescriptor()
+
+            def __init__(self, attr):
+                self.attr = attr
+
+        test = Test("attribute")
+
+        self.assertEqual(Path("desc").get_in(test), 'attribute')
+        self.assertEqual(WildPath("*").get_in(test), {'attr': 'attribute',
+                                                      'desc': 'attribute'})
+        Path("desc").set_in(test, "betribute")
+        self.assertEqual(Path("desc").get_in(test), 'betribute')
+        WildPath("*").set_in(test, "cetribute")  # sets both
+        self.assertEqual(Path("desc").get_in(test), 'cetribute')
+
+        Path("desc").del_in(test)
+        self.assertEqual(Path("desc").has_in(test), False)
+
+
 
 class TestDocs(TestBase):
 
