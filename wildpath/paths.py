@@ -1,16 +1,10 @@
-import sys
 from copy import copy
-from fnmatch import fnmatchcase
 from collections import Mapping, Sequence, MutableMapping, MutableSequence
 
 from wildpath.keyparser import KeyParser
+from wildpath.tools import value_sequence_types
 
 __author__ = "Lars van Gemerden"
-
-try:
-    value_sequence_types = (basestring, bytearray, bytes, buffer)
-except NameError:
-    value_sequence_types = (str, bytearray, bytes)
 
 
 _marker = object()
