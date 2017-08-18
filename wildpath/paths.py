@@ -88,15 +88,6 @@ class BasePath(tuple):
     def del_in(self, obj):
         return self._del_in(obj)
 
-    def _get_in(self, obj, default=_marker):
-        raise NotImplementedError
-
-    def _set_in(self, obj, value):
-        raise NotImplementedError
-
-    def _del_in(self, obj):
-        raise NotImplementedError
-
     def pop_in(self, obj):
         result = self._get_in(obj)
         self._del_in(obj)
@@ -110,6 +101,18 @@ class BasePath(tuple):
             return False
         return True
 
+    def call_in(self, obj, *args, **kwargs):
+        raise NotImplementedError
+
+    def _get_in(self, obj, default=_marker):
+        raise NotImplementedError
+
+    def _set_in(self, obj, value):
+        raise NotImplementedError
+
+    def _del_in(self, obj):
+        raise NotImplementedError
+
     def __add__(self, other):
         return self.__class__(tuple.__add__(self, other))
 
@@ -121,6 +124,9 @@ class Path(BasePath):
     """
     Fast implementation of the baseclass that does not allow wildcards and slicing.
     """
+
+    def call_in(self, obj, *args, **kwargs):
+        return self.get_in(obj)(*args, **kwargs)
 
     def _get_in(self, obj, default=_marker):
         """returns item at wildpath 'self' from the 'obj'"""
@@ -196,11 +202,11 @@ class WildPath(BasePath):
                 preprocessed[wild_key] = _parse(wild_key, simplify=True)
         return self
 
-    def get_in(self, obj, default=_marker, flat=False):
-        result = super(WildPath, self).get_in(obj, default)
-        if flat:
-            return flatten(result)
-        return result
+    def call_in(self, obj, *args, **kwargs):
+        results = self.get_in(obj)
+        for path, instance_method in Path.items(results):
+            path.set_in(results, instance_method(*args, **kwargs))
+        return results
 
     def _get_in(self, obj, default=_marker, _preprocessed=_preprocessed):
         """returns item(s) at wildpath 'self' from the 'obj'"""
