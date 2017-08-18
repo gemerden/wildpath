@@ -284,6 +284,7 @@ class TestWildPath(TestBase):
         self.assertEqual(WildPath("b*.1").get_in(s), {'ba': 3, 'bb': 5})
         self.assertEqual(WildPath("c*.e").get_in(s), {'ca': 7, 'cb': 9})
         self.assertEqual(WildPath("c*.e*").get_in(s), {'ca': {'e': 7}, 'cb': {'e': 9}})
+        self.assertEqual(set(WildPath("c*.e*").get_in(s, flat=True)), {7, 9})
 
     def test_wild_set(self):
         p1 = WildPath("bb.*")
@@ -625,7 +626,7 @@ class TestLogicPath(TestBase):
             self.assertEqual(set(path.get_in(obj).keys()), expected)
 
 
-    def test_simple_indexes(self):
+    def test_simple_indices(self):
         obj = tuple(range(3))
         wildkey_expected = {"*": {0,1,2},
                             ":": {0,1,2},
@@ -647,7 +648,15 @@ class TestLogicPath(TestBase):
             self.assertEqual(set(path.get_in(obj)), expected)
 
 
-class testVarious(unittest.TestCase):
+class TestVarious(unittest.TestCase):
+
+    def test_default(self):
+        obj = [
+            dict(a=[0, 1, 2], b="b1"),
+            dict(a=[3, 4, 5], b="b2", c="c"),
+        ]
+        self.assertEqual(Path("0.c").get_in(obj, "default"), "default")
+        self.assertEqual(WildPath("*.c").get_in(obj, "default"), ["default", "c"])
 
     def test_property(self):
         class Some(object):
@@ -708,7 +717,6 @@ class testVarious(unittest.TestCase):
 
         Path("desc").del_in(test)
         self.assertEqual(Path("desc").has_in(test), False)
-
 
 
 class TestDocs(TestBase):
