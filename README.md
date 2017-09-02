@@ -19,7 +19,7 @@ In normal code this would look something like (with `json_route` the result from
 ```python
 def get_geo_locations(json_route):
     geo_locs = []
-    for json_step in json_route["routes"][0]["legs"][0]["steps"]:  #  there is only 1 route and 1 leg in the response
+    for json_step in json_route["routes"][0]["legs"][0]["steps"]: 
         geo_locs.append({"start_location": json_step["start_location"],
                          "end_location": json_step["end_location"]})
     return geo_locs
@@ -32,7 +32,7 @@ Using `WildPath` the same result is obtained by:
 ```python
 location_path = WildPath("routes.0.legs.0.steps.*.*_location")
 
-geo_locations = location_path.get_in(json_route)  # note the path.get_in(obj) syntax versus the usual obj.get(key)
+geo_locations = location_path.get_in(json_route)  
 ```
 
 Both produce the same list of items:
@@ -48,7 +48,7 @@ Both produce the same list of items:
             "lng": 4.3286669
         }
     }, 
-    ...
+    ...  # etc.
 ]
 ```
 Essentially the function definition is replaced by a string, using `WildPath.get_in` for the correct lookup logic. This has some advantages:
@@ -70,6 +70,7 @@ The **`Path`** class supports, with e.g. `path = Path("a.0.b")` and `obj = {"a":
  - `del_in`: deleting items from data structures: `path.del_in(obj)`,
  - `has_in`: checking whether a value exists at path: `path.has_in(obj)`,
  - `pop_in`: deleting and returning items from data structures: `path.pop_in(obj)`.
+ - `call_in`: calling the method(s) at the path-location in data structures: `path.call_in(obj, *args, **kwargs)`.
  
  It also has some iterators that run through all paths and values in a data structure:
   
@@ -77,17 +78,24 @@ The **`Path`** class supports, with e.g. `path = Path("a.0.b")` and `obj = {"a":
  - `Path.paths(obj)`: iterator over all paths in the object, 
  - `Path.values(obj)`: iterator over all values in the object. 
  
-The **`WildPath`** class supports the same functionality as `Path`, but with the following additions:
+The **`WildPath`** class supports the same functionality as `Path`, with the following additions:
 
  - Keys referring to mappings (e.g. `dict`) or python class objects can contain wildcards: `WildPath("*.a*.b?")`, with `*` for any string and `?` for any single character. Wildcards use the standard python `fnmatch.fnmatchcase`,
  - Keys referring to sequences (e.g. `list`, `tuple`) can contain slices: `WildPath("1:3.::2")`, with `:` from standard python slice notation `some_list[start:stop:step]`,
- - All keys can contain boolean logic, using `&` for AND, `|` for OR and `!` for NOT: `WildPath("a*&!*b")`: keys starting with `'a'` and not ending with `'b'`.
+ - All keys can contain boolean logic, using `&` for AND, `|` for OR and `!` for NOT: `WildPath("a*&!*b")`: keys starting with `'a'` and not ending with `'b'`. This is also valid for slice keys `WildPath("2:4|6:8")`: indices 2, 3, 6, 7.
+ 
+E.g. WildPath.get_in returns simplified data-structures, skipping non-wildcard/slice keys, so:
+ ```python
+WildPath("a.*.x").get_in({"a": {"u": {"x":1}, "v": {"x": 2}}}) == [1, 2] 
+```
+takes the value at key "a", iterates over keys "u" and "v" and takes the value at key "x".
  
 Note that:
 
  - The iterator methods of `WildPath` return paths of type `WildPath`, instead of `Path`,
- - If a key or index is not found in the data, a `KeyError` or `IndexError` will be raised,
+ - If a key or index or attribute is not found in the data, a `KeyError`, `IndexError` or `AttributeError` reesp. will be raised,
  - `get_in` can take a `default` parameter, that is returned if no value exists at the path location: `path.get_in(obj, None)`,
+ - `WildPath.get_in` can take a `flat` parameter, turning the resulting data structure into a flat list: `path.get_in(obj, flat=True)`,
  - Using wildpaths will return instances of the classes in the original object for mappings and sequences. For (other) python objects it will return a `dict`. For example `WildPath(":2").get_in((1, 2, 3))` will return `(1, 2)`.
 
 
@@ -317,7 +325,7 @@ Note that some methods (like `__add__` and `path[1:]`) are overridden to return 
 Because of the characters used to parse the paths, some keys in the target datastructures will cause the system to fail:
 
  - for `Path` and `WildPath`: keys in Mappings (e.g. dict, OrderedDict) cannot contain a `.`,
- - for `WildPath`: keys in Mappings cannot contain the characters `*`, `?`, `!`, `|` and `&`, or to be precise, if they are present, they cannot be used in paths for lookups,
+ - for `WildPath`: keys in Mappings cannot contain the characters `*`, `?`, `!`, `|` and `&`, or to be precise, if they are present, they cannot be used in wildpaths for lookups,
  - note that the `.` separator can easily be replaced in a subclass, allowing paths like `"a/b/3/x"` instead of `"a.b.3.x"` (and therefore path `"a/b.c/3/x"` with `b.c` a dictionary key):
  
 ```python
@@ -329,7 +337,7 @@ class SlashPath(Path):
 class WildSlashPath(WildPath):
     sep = '/'
 ```
-Overriding `!`, `|` and `&` will take a little more work: override class-attribute `tokens` in `WildPath` and override `KeyParser.DEFAULT_TOKENS`. Currently there is no way to override hte tokens `*` and `?` in `WildPath`.
+Overriding `!`, `|` and `&` will take a little more work: override class-attribute `tokens` in `WildPath` and override `KeyParser.DEFAULT_TOKENS`. Currently there is no way to override tokens `*` and `?` in `WildPath`.
 
 ## Testing
 
@@ -341,9 +349,9 @@ Lars van Gemerden (rational-it) - initial code and documentation.
 
 ## License
 
-This project is licensed under the license in LICENSE.txt.
+This project is usable under the MIT License in LICENSE.txt.
 
 ## Acknowledgments
 
- - For convincing me to open-source this module, a big thanks to Jasper Hartong,
- - For the creators of the module `boolean.py`, thanks for making boolean parsing a lot easier.
+ - A big thanks to Jasper Hartong for convincing me to open-source this module,
+ - To the creators of the module `boolean.py`, thanks for making boolean parsing a lot easier.
