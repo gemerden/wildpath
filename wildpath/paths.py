@@ -1,5 +1,6 @@
 from copy import copy
 from collections import Mapping, Sequence, MutableMapping, MutableSequence
+from inspect import ismethod
 
 from wildpath.keyparser import KeyParser
 from wildpath.tools import value_sequence_types, flatten
@@ -17,11 +18,11 @@ class BasePath(tuple):
     sep = "."
 
     @classmethod
-    def get_object_items(cls, obj):
+    def _get_object_items(cls, obj, _call=False):
         for name in dir(obj):
             if not (name.startswith("__") and name.endswith("__")):
                 attr = getattr(obj, name)
-                if not callable(attr):
+                if _call or not callable(attr):
                     yield name, attr
 
     @classmethod
@@ -30,26 +31,28 @@ class BasePath(tuple):
                 and not callable(getattr(obj, name))}
 
     @classmethod
-    def items(cls, obj, all=False, _path=None):
+    def items(cls, obj, all=False, _path=None, _call=False):
         """ iterates over all (wildpath, value) items in the (nested) object """
         if _path is None:
             _path = cls()
         elif all:
             yield _path, copy(obj)
-        if isinstance(obj, value_sequence_types):
+        if _call and callable(obj):
+            yield _path, obj
+        elif isinstance(obj, value_sequence_types):
             if not all:
                 yield _path, obj
         elif isinstance(obj, Mapping):
             for key, sub_obj in obj.items():
-                for sub_path, sub_obj in cls.items(sub_obj, all, _path + cls(key)):
+                for sub_path, sub_obj in cls.items(sub_obj, all, _path + cls(key), _call=_call):
                     yield sub_path, sub_obj
         elif isinstance(obj, Sequence):
             for index, sub_obj in enumerate(obj):
-                for sub_path, sub_obj in cls.items(sub_obj, all, _path + cls(str(index))):
+                for sub_path, sub_obj in cls.items(sub_obj, all, _path + cls(str(index)), _call=_call):
                     yield sub_path, sub_obj
         elif hasattr(obj, "__dict__"):
-            for key, sub_obj in cls.get_object_items(obj):
-                for sub_path, sub_obj in cls.items(sub_obj, all, _path + cls(key)):
+            for key, sub_obj in cls._get_object_items(obj, _call):
+                for sub_path, sub_obj in cls.items(sub_obj, all, _path + cls(key), _call=_call):
                     yield sub_path, sub_obj
         elif not all:
             yield _path, obj
@@ -200,13 +203,24 @@ class WildPath(BasePath):
             #  if wild_cards or slicing is used, multiple results are returned and the boolean logic is applied
             if wild_key not in preprocessed and any(t in wild_key for t in _tokens):
                 preprocessed[wild_key] = _parse(wild_key, simplify=True)
+        self.depth = self._get_depth()
         return self
+
+    def _get_depth(self):
+        prep = self._preprocessed
+        return len([k for k in self if k in prep])-1
 
     def call_in(self, obj, *args, **kwargs):
         results = self.get_in(obj)
-        for path, instance_method in Path.items(results):
+        for path, instance_method in Path.items(results, _call=True):
             path.set_in(results, instance_method(*args, **kwargs))
         return results
+
+    def get_in(self, obj, default=_marker, flat=False):
+        result = super(WildPath, self).get_in(obj, default)
+        if flat:
+            return flatten(result, depth=self.depth)
+        return result
 
     def _get_in(self, obj, default=_marker, _preprocessed=_preprocessed):
         """returns item(s) at wildpath 'self' from the 'obj'"""
@@ -250,7 +264,6 @@ class WildPath(BasePath):
                     return self[1:]._get_in(obj[int(key)], default)
                 else:
                     return self[1:]._get_in(getattr(obj, key), default)
-
 
     def _set_in(self, obj, value, get_with_key=_get_with_key,  # speed up function access
                                   get_with_index=_get_with_index,
