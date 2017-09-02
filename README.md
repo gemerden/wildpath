@@ -86,7 +86,7 @@ The **`WildPath`** class supports the same functionality as `Path`, with the fol
  
 E.g. WildPath.get_in returns simplified data-structures, skipping non-wildcard/slice keys, so:
  ```python
-WildPath("a.*.x").get_in({"a": {"u": {"x":1}, "v": {"x": 2}}}) == [1, 2] 
+WildPath("a.*.x").get_in({"a": {"u": {"x":1}, "v": {"x": 2}}}) == {"u": 1, "v": 2}
 ```
 takes the value at key "a", iterates over keys "u" and "v" and takes the value at key "x".
  
