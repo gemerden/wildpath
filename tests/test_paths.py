@@ -14,6 +14,9 @@ class Object(object):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+    def add(self, x, y, z=0):
+        return self.s + x + y + z
+
     def __eq__(self, other):
         return self.__class__ == other.__class__ and self.__dict__ == other.__dict__
 
@@ -30,7 +33,12 @@ class TestBase(unittest.TestCase):
             c=dict(d=4, e=5),
             d=Object(e=6),
             e=[dict(a=7, b=8),
-               dict(b=9, c=0)]
+               dict(b=9, c=0),
+               Object()],
+            f=[[dict(a=[7,7], b=[8,8]),
+                dict(b=[9,9], c=[0,0,0])],
+               [dict(a=[1,1], b=[2,2]),
+                dict(b=[3,3], c=[4,4,4])]],
         )
         self.complex = Object(
             aa=1,
@@ -39,7 +47,7 @@ class TestBase(unittest.TestCase):
             ca=dict(d=6, e=7, f=8),
             cb=Object(e=9),
             ff=[1,2,3,4,5,6],
-            gg=[dict(a=1, b=2), dict(b=3, c=4), dict(a=5, b=6, c=7)]
+            gg=[dict(a=1, b=2), dict(b=3, c=4), dict(a=5, b=6, c=7)],
         )
 
         self.agenda = agenda
@@ -131,9 +139,9 @@ class TestPath(TestBase):
         with self.assertRaises(KeyError):
             Path("e.1.a").get_in(s)
         with self.assertRaises(IndexError):
-            Path("e.2.a").get_in(s)
+            Path("e.5.a").get_in(s)
         with self.assertRaises(AttributeError):
-            Path("f.3").get_in(s)
+            Path("e.2.x").get_in(s)
 
 class TestWildPath(TestBase):
 
@@ -205,7 +213,7 @@ class TestWildPath(TestBase):
         p._set_in(s, 11)
         self.assertEqual(p.get_in(s), 11)
         s = deepcopy(self.simple)
-        p = WildPath("e.*.b")
+        p = WildPath("e.:2.b")
         p._set_in(s, [11, 12])
         self.assertEqual(p.get_in(s), [11,12])
 
@@ -213,15 +221,15 @@ class TestWildPath(TestBase):
         s = deepcopy(self.simple)
         p = WildPath("e.*.b")
         p._set_in(s, 13)
-        self.assertEqual(p.get_in(s), [13,13])
+        self.assertEqual(p.get_in(s), [13,13, 13])
 
         s = deepcopy(self.simple)
-        p = WildPath("e.*.*")
+        p = WildPath("e.:2.*")
         p._set_in(s, 13)
         self.assertEqual(p.get_in(s), [{'a': 13, 'b': 13}, {'c': 13, 'b': 13}])
 
         s = deepcopy(self.simple)
-        p = WildPath("e.*")
+        p = WildPath("e.:2")
         p._set_in(s, 13)
         self.assertEqual(p.get_in(s), [13, 13])
 
@@ -378,9 +386,9 @@ class TestWildPath(TestBase):
         with self.assertRaises(KeyError):
             WildPath("e.1.a").get_in(s)
         with self.assertRaises(IndexError):
-            WildPath("e.2.a").get_in(s)
+            WildPath("e.5.a").get_in(s)
         with self.assertRaises(AttributeError):
-            WildPath("f.3").get_in(s)
+            WildPath("e.2.x").get_in(s)
 
     def test_string_like_values(self):
         items = list(WildPath.items(self.agenda))
@@ -391,12 +399,32 @@ class TestWildPath(TestBase):
         except Exception as e:
             self.fail(e)
 
+    def test_flat(self):
+        obj=deepcopy(self.simple)
+        path = WildPath("f.*.*.*.1")
+        self.assertEqual(set(path.get_in(obj, flat=True)), {7, 8, 0, 9, 1, 2, 4, 3})   #order is not preserved for dicts
+        path = WildPath("f.*.*.*")
+        self.assertTrue(all(isinstance(p, list) for p in path.get_in(obj, flat=True)))
+
+    def test_call_in(self):
+        special = Object(s=0)
+        special.sub = lambda x, y: x-y
+        obj = [
+            dict(a=Object(s=1), b=Object(s=2), c=special),
+            dict(aa=Object(s=3), bb=Object(s=4), c=special),
+        ]
+        path = WildPath("*.a*.add")
+        self.assertEqual(path.call_in(obj, 1, y=2), [{'a': 4}, {'aa': 6}])
+        path = WildPath("*.c.sub")
+        self.assertEqual(path.call_in(obj, 2, y=1), [1, 1])
+
+
 
 class TestIterators(TestBase):
 
     def test_iteritems_all(self):
         paths = [path for path in Path.items(self.simple, all=True)]
-        self.assertEqual(len(paths), 16)
+        self.assertEqual(len(paths), 50)
 
         new = {}
         for path, value in Path.items(self.simple, all=True):
@@ -408,12 +436,9 @@ class TestIterators(TestBase):
     def test_iteritems(self):
         items = [path for path in Path.items(self.simple, all=False)]
         self.assertTrue(all(isinstance(item, tuple) for item in items))
-        self.assertEqual(len(items), 10)
+        self.assertEqual(len(items), 28)
 
     def test_iteritems_copy(self):
-        paths = [path for path in Path.items(self.simple, all=True)]
-        self.assertEqual(len(paths), 16)
-
         simple = deepcopy(self.simple)
         new = {}
         for path, value in Path.items(simple, all=True):
