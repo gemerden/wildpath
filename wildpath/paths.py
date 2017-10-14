@@ -22,7 +22,7 @@ class BasePath(tuple):
         for name in dir(obj):
             if not (name.startswith("__") and name.endswith("__")):
                 attr = getattr(obj, name)
-                if _call or not callable(attr):
+                if (name in obj.__dict__ or isinstance(attr, property)) or (_call and callable(attr)):
                     yield name, attr
 
     @classmethod
