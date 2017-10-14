@@ -22,8 +22,15 @@ class BasePath(tuple):
         for name in dir(obj):
             if not (name.startswith("__") and name.endswith("__")):
                 attr = getattr(obj, name)
-                if (name in obj.__dict__ or isinstance(attr, property)) or (_call and callable(attr)):
+                if name in obj.__dict__ or (_call and callable(attr)):
                     yield name, attr
+                else:
+                    cls_attr = getattr(obj.__class__, name, None)
+                    if not callable(cls_attr):
+                        if (isinstance(cls_attr, property) or
+                                hasattr(cls_attr, "__get__") or
+                                hasattr(cls_attr, "__set__")):
+                            yield name, attr
 
     @classmethod
     def get_object_dict(cls, obj):

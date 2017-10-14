@@ -743,6 +743,20 @@ class TestVarious(unittest.TestCase):
         Path("desc").del_in(test)
         self.assertEqual(Path("desc").has_in(test), False)
 
+    def test_class_items(self):
+        class Test(object):
+            dont_find_1 = 1
+
+            @classmethod
+            def dont_find_2(cls):
+                pass
+
+            @staticmethod
+            def dont_find_3(cls):
+                pass
+
+        self.assertEqual(list(Path.items(Test())), [])
+
 
 class TestDocs(TestBase):
 
