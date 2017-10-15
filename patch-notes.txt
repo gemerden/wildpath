@@ -11,3 +11,7 @@ version 0.2.1
  - adds (Wild)Path.call_in(self, *args, **kwargs) to call methods and get return values in a data-structure,
  - improves handling of defaults for WildPath.get_in: now replaces missing values in result instead of returning a single value,
  - adds a 'flat' parameter to WilfPath.get_in, returning values in a single flat list; default is False.
+
+ version 0.2.2
+
+ - makes iterators (Path.items(obj), ...) less greedy to prevent infinite recursions in some cases.
