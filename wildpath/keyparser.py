@@ -35,6 +35,8 @@ class WildSymbol(Symbol):
         except TypeError:
             return set(range(*wild_key.indices(len(keys))))
         else:
+            while index < 0:
+                index += len(keys)
             return {index} if index in keys else set()
 
     def __lt__(self, other):
