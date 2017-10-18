@@ -675,6 +675,12 @@ class TestLogicPath(TestBase):
 
 class TestVarious(unittest.TestCase):
 
+    def test_orring_negative_indices(self):
+        obj = dict(key=[[0,1],[2,3],[4,5],[6,7]])
+        path = WildPath("key.0|-1.0")
+        self.assertEqual(path.get_in(obj), [0, 6])
+
+
     def test_default(self):
         obj = [
             dict(a=[0, 1, 2], b="b1"),
