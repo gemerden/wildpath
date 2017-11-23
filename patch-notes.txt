@@ -15,3 +15,9 @@ version 0.2.1
  version 0.2.2
 
  - makes iterators (Path.items(obj), ...) less greedy to prevent infinite recursions in some cases.
+
+ version 0.2.3
+
+ - small fix to handling of negative indices.
+
+
