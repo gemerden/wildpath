@@ -13,7 +13,7 @@ def flatten(item_s, depth=BIGINT):
     out = []
     if isinstance(item_s, value_sequence_types):
         out.append(item_s)
-    if isinstance(item_s, Mapping) and depth>-1:
+    elif isinstance(item_s, Mapping) and depth>-1:
         out.extend(sum((flatten(v, depth-1) for v in item_s.values()), []))
     elif isinstance(item_s, Sequence) and depth>-1:
         out.extend(sum((flatten(v, depth-1) for v in item_s), []))
