@@ -21,3 +21,8 @@ version 0.2.1
  - small fix to handling of negative indices.
 
 
+ version 0.2.4
+
+  - fixes string items in object sometimes returning doubles when `flat=True`
+
+
