@@ -33,11 +33,6 @@ class BasePath(tuple):
                             yield name, attr
 
     @classmethod
-    def get_object_dict(cls, obj):
-        return {name: getattr(obj, name) for name in dir(obj) if not (name.startswith("__") and name.endswith("__"))
-                and not callable(getattr(obj, name))}
-
-    @classmethod
     def items(cls, obj, all=False, _path=None, _call=False):
         """ iterates over all (wildpath, value) items in the (nested) object """
         if _path is None:
@@ -176,6 +171,11 @@ class Path(BasePath):
             delattr(obj, self[-1])
 
 
+def _get_object_dict(obj):
+    return {name: getattr(obj, name) for name in dir(obj) if not (name.startswith("__") and name.endswith("__"))
+            and not callable(getattr(obj.__class__, name, None))}
+
+
 def _get_with_key(value, k):
     if isinstance(value, Mapping):
         return value[k]
@@ -203,11 +203,10 @@ class WildPath(BasePath):
 
     _preprocessed = {}
 
-    def __new__(cls, string_or_seq=None, _parse=algebra.parse, _tokens=tokens):
+    def __new__(cls, string_or_seq=None, _parse=algebra.parse, _tokens=tokens, preprocessed=_preprocessed):
         self = super(WildPath, cls).__new__(cls, string_or_seq)
-        preprocessed = cls._preprocessed
         for wild_key in self:
-            #  if wild_cards or slicing is used, multiple results are returned and the boolean logic is applied
+            #  if wild_cards or slicing are used, multiple results are returned and the boolean logic is applied
             if wild_key not in preprocessed and any(t in wild_key for t in _tokens):
                 preprocessed[wild_key] = _parse(wild_key, simplify=True)
         self.depth = self._get_depth()
@@ -229,28 +228,29 @@ class WildPath(BasePath):
             return flatten(result, depth=self.depth)
         return result
 
-    def _get_in(self, obj, default=_marker, _preprocessed=_preprocessed):
+    def _get_in(self, obj, default=_marker, get_object_dict=_get_object_dict,
+                                            preprocessed=_preprocessed):
         """returns item(s) at wildpath 'self' from the 'obj'"""
         if not len(self):
             return obj
         key = self[0]
-        if key in _preprocessed:  # this is not a single key or index
+        if key in preprocessed:  # this is not a single key or index
             if len(self) == 1:
                 if isinstance(obj, Mapping):
-                    return {k: obj[k] for k in _preprocessed[key](*obj)}
+                    return {k: obj[k] for k in preprocessed[key](*obj)}
                 elif isinstance(obj, Sequence):
-                    return [obj[i] for i in _preprocessed[key](*range(len(obj)))]
+                    return [obj[i] for i in preprocessed[key](*range(len(obj)))]
                 else:
-                    obj_dict = self.get_object_dict(obj)
-                    return {k: obj_dict[k] for k in _preprocessed[key](*obj_dict)}
+                    obj_dict = get_object_dict(obj)
+                    return {k: obj_dict[k] for k in preprocessed[key](*obj_dict)}
             else:
                 if isinstance(obj, Mapping):
-                    return {k: self[1:]._get_in(obj[k], default) for k in _preprocessed[key](*obj)}
+                    return {k: self[1:]._get_in(obj[k], default) for k in preprocessed[key](*obj)}
                 elif isinstance(obj, Sequence):
-                    return [self[1:].get_in(obj[i], default) for i in _preprocessed[key](*range(len(obj)))]
+                    return [self[1:].get_in(obj[i], default) for i in preprocessed[key](*range(len(obj)))]
                 else:
-                    obj_dict = self.get_object_dict(obj)
-                    return {k: self[1:]._get_in(obj_dict[k], default) for k in _preprocessed[key](*obj_dict)}
+                    obj_dict = get_object_dict(obj)
+                    return {k: self[1:]._get_in(obj_dict[k], default) for k in preprocessed[key](*obj_dict)}
         else:
             if len(self) == 1:
                 try:
@@ -272,32 +272,33 @@ class WildPath(BasePath):
                 else:
                     return self[1:]._get_in(getattr(obj, key), default)
 
-    def _set_in(self, obj, value, get_with_key=_get_with_key,  # speed up function access
+    def _set_in(self, obj, value, get_object_dict=_get_object_dict,
+                                  get_with_key=_get_with_key,  # speed up function access
                                   get_with_index=_get_with_index,
-                                  _preprocessed=_preprocessed):
+                                  preprocessed=_preprocessed):
         """sets item(s) at wildpath 'self' of 'obj' to 'value'"""
         key = self[0]
-        if key in _preprocessed:
+        if key in preprocessed:
             if len(self) == 1:
                 if isinstance(obj, MutableMapping):
-                    for k in _preprocessed[key](*obj):
+                    for k in preprocessed[key](*obj):
                         obj[k] = get_with_key(value, k)
                 elif isinstance(obj, MutableSequence):
-                    for i, j in enumerate(_preprocessed[key](*range(len(obj)))):
+                    for i, j in enumerate(preprocessed[key](*range(len(obj)))):
                         obj[j] = get_with_index(value, i)
                 else:
-                    for k in _preprocessed[key](*self.get_object_dict(obj)):
+                    for k in preprocessed[key](*get_object_dict(obj)):
                         setattr(obj, k, get_with_key(value, k))
             else:
                 if isinstance(obj, MutableMapping):
-                    for k in _preprocessed[key](*obj):
+                    for k in preprocessed[key](*obj):
                         self[1:]._set_in(obj[k], get_with_key(value, k))
                 elif isinstance(obj, MutableSequence):
-                    for i, j in enumerate(_preprocessed[key](*range(len(obj)))):
+                    for i, j in enumerate(preprocessed[key](*range(len(obj)))):
                         self[1:]._set_in(obj[j], get_with_index(value, i))
                 else:
-                    obj_dict = self.get_object_dict(obj)
-                    for k in _preprocessed[key](*obj_dict):
+                    obj_dict = get_object_dict(obj)
+                    for k in preprocessed[key](*obj_dict):
                         self[1:]._set_in(obj_dict[k], get_with_key(value, k))
         else:
             if len(self) == 1:
@@ -316,31 +317,32 @@ class WildPath(BasePath):
                     self[1:]._set_in(getattr(obj, key), _get_with_key(value, key))
 
 
-    def _del_in(self, obj, _preprocessed=_preprocessed):
+    def _del_in(self, obj, get_object_dict=_get_object_dict,
+                           preprocessed=_preprocessed):
         """deletes item(s) at wildpath 'self' from the 'obj'"""
         key = self[0]
-        if key in _preprocessed:
+        if key in preprocessed:
             if len(self) == 1:
                 if isinstance(obj, MutableMapping):
-                    for k in _preprocessed[key](*obj):
+                    for k in preprocessed[key](*obj):
                         del obj[k]
                 elif isinstance(obj, MutableSequence):
-                    for i in _preprocessed[key](*range(len(obj))):
+                    for i in preprocessed[key](*range(len(obj))):
                         obj[i] = _marker  # marked for deletion
                     obj[:] = [v for v in obj if v is not _marker]
                 else:
-                    for k in _preprocessed[key](*self.get_object_dict(obj)):
+                    for k in preprocessed[key](*get_object_dict(obj)):
                         delattr(obj, k)
             else:
                 if isinstance(obj, MutableMapping):
-                    for k in _preprocessed[key](*obj):
+                    for k in preprocessed[key](*obj):
                         self[1:]._del_in(obj[k])
                 elif isinstance(obj, MutableSequence):
-                    for i in _preprocessed[key](*range(len(obj))):
+                    for i in preprocessed[key](*range(len(obj))):
                         self[1:]._del_in(obj[i])
                 else:
-                    obj_dict = self.get_object_dict(obj)
-                    for k in _preprocessed[key](*obj_dict):
+                    obj_dict = get_object_dict(obj)
+                    for k in preprocessed[key](*obj_dict):
                         self[1:]._del_in(obj_dict[k])
         else:
             if len(self) == 1:
