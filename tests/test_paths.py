@@ -721,7 +721,7 @@ class TestVarious(unittest.TestCase):
         class TestDescriptor(object):
             def __get__(self, obj, cls):
                 if obj is None:
-                    return cls
+                    return self
                 return obj.attr
 
             def __set__(self, obj, value):
