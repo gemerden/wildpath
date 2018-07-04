@@ -237,17 +237,17 @@ class WildPath(BasePath):
         if key in _preprocessed:  # this is not a single key or index
             if len(self) == 1:
                 if isinstance(obj, Mapping):
-                    return obj.__class__((k, obj[k]) for k in _preprocessed[key](*obj))
+                    return {k: obj[k] for k in _preprocessed[key](*obj)}
                 elif isinstance(obj, Sequence):
-                    return obj.__class__(obj[i] for i in _preprocessed[key](*range(len(obj))))
+                    return [obj[i] for i in _preprocessed[key](*range(len(obj)))]
                 else:
                     obj_dict = self.get_object_dict(obj)
                     return {k: obj_dict[k] for k in _preprocessed[key](*obj_dict)}
             else:
                 if isinstance(obj, Mapping):
-                    return obj.__class__((k, self[1:]._get_in(obj[k], default)) for k in _preprocessed[key](*obj))
+                    return {k: self[1:]._get_in(obj[k], default) for k in _preprocessed[key](*obj)}
                 elif isinstance(obj, Sequence):
-                    return obj.__class__(self[1:].get_in(obj[i], default) for i in _preprocessed[key](*range(len(obj))))
+                    return [self[1:].get_in(obj[i], default) for i in _preprocessed[key](*range(len(obj)))]
                 else:
                     obj_dict = self.get_object_dict(obj)
                     return {k: self[1:]._get_in(obj_dict[k], default) for k in _preprocessed[key](*obj_dict)}
@@ -357,7 +357,6 @@ class WildPath(BasePath):
                     self[1:]._del_in(obj[int(key)])
                 else:
                     self[1:]._del_in(getattr(obj, key))
-
 
 
 
