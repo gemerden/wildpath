@@ -8,6 +8,14 @@ except NameError:
 BIGINT = 10**9
 
 
+def dedoubled(lst):
+    out_list = []
+    for item in lst:
+        if item not in out_list:
+            out_list.append(item)
+    return out_list
+
+
 def flatten(item_s, depth=BIGINT):
     """ turn values in nested sequences and mappings into a flat list """
     out = []
