@@ -5,6 +5,12 @@ from inspect import ismethod
 from wildpath.keyparser import KeyParser
 from wildpath.tools import value_sequence_types, flatten
 
+try:
+    basestring
+except NameError:
+    basestring = str
+
+
 __author__ = "Lars van Gemerden"
 
 
@@ -71,7 +77,7 @@ class BasePath(tuple):
 
     def __new__(cls, string_or_seq=None):
         string_or_seq = string_or_seq or ()
-        if isinstance(string_or_seq, str):
+        if isinstance(string_or_seq, basestring):
             return tuple.__new__(cls, string_or_seq.split(cls.sep))
         else:
             return tuple.__new__(cls, string_or_seq)
