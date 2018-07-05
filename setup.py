@@ -14,7 +14,7 @@ except (IOError, ImportError):
 
 setup(
     name='wildpath',
-    version='0.2.4',
+    version='0.2.5',
     description='easy data structure access utility',
     long_description=long_description,
     author='Lars van Gemerden',
@@ -45,5 +45,5 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
     # python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, <4',
-    keywords='access data structure getter setter deleter iterator utility tool',
+    keywords='access data structure getter setter deleter iterator utility tool path wildcard slice',
 )
