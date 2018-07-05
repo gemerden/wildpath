@@ -66,6 +66,10 @@ class TestPath(TestBase):
     def test_some_basics(self):
         path = Path('')
 
+    def test_unicode(self):
+        path = Path(u"a.0")
+        self.assertEqual(path.get_in({"a": [1]}), 1)
+
     def test_basic_get(self):
         p1 = Path("a")
         p2 = Path("1")
