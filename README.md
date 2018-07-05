@@ -96,8 +96,7 @@ Note that:
  - If a key or index or attribute is not found in the data, a `KeyError`, `IndexError` or `AttributeError` reesp. will be raised,
  - `get_in` can take a `default` parameter, that is returned if no value exists at the path location: `path.get_in(obj, None)`,
  - `WildPath.get_in` can take a `flat` parameter, turning the resulting data structure into a flat list: `path.get_in(obj, flat=True)`,
- - Using wildpaths will return instances of the classes in the original object for mappings and sequences. For (other) python objects it will return a `dict`. For example `WildPath(":2").get_in((1, 2, 3))` will return `(1, 2)`.
-
+ -  `WildPath.get_in` will return instances of dict, list or a normal value.
 
 ## Examples
 Starting with this example structure of an agenda item in some tool:
