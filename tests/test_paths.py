@@ -250,7 +250,7 @@ class TestWildPath(TestBase):
         self.assertEqual(WildPath("ff.::2").get_in(s), [1,3,5])
         self.assertEqual(WildPath("ff.1:3").get_in(s), [2,3])
         self.assertEqual(WildPath("ff.:").get_in(s), [1,2,3,4,5,6])
-        self.assertEqual(WildPath("ff.-1:0:-2").get_in(s), [2,4,6])
+        self.assertEqual(WildPath("ff.-1:0:-2").get_in(s), [6, 4, 2])
         self.assertEqual(WildPath("gg.:2.b").get_in(s), [2,3])
         with self.assertRaises(KeyError):
             self.assertEqual(WildPath("gg.:2.a").get_in(s), [6,4,2])
@@ -281,8 +281,8 @@ class TestWildPath(TestBase):
 
         #  get_in
         self.assertEqual(path_1.get_in(L), [0,1,3,4,5,6,7,8,9])  # not 2
-        self.assertEqual(path_2.get_in(L), [0, 2, 3, 4, 6, 8, 9])
-        self.assertEqual(path_3.get_in(L), [0, 1, 3, 5, 6, 7, 9])
+        self.assertEqual(path_2.get_in(L), [0, 2, 4, 6, 8, 3, 9])
+        self.assertEqual(path_3.get_in(L), [9, 7, 5, 3, 1, 6, 0])
         self.assertEqual(path_4.get_in(L), L)
         self.assertEqual(path_5.get_in(L), [2])
 
@@ -456,125 +456,137 @@ class TestKeyParser(unittest.TestCase):
 
     def test_empty(self):
         exp = self.keyparser.parse("*")
-        self.assertEqual(exp("a", "b", "c"), {"a", "b", "c"})
+        self.assertEqual(exp("a", "b", "c"), ["a", "b", "c"])
         exp = self.keyparser.parse("!*")
-        self.assertEqual(exp(*range(5)), set())
+        self.assertEqual(exp(*range(5)), [])
 
     def test_or(self):
         exp = self.keyparser.parse("a|b|c")
-        self.assertEqual(exp("a", "b", "d"), {"a", "b"})
+        self.assertEqual(exp("a", "b", "d"), ["a", "b"])
         exp = self.keyparser.parse("1|2|3")
-        self.assertEqual(exp(*range(5)), {1,2,3})
+        self.assertEqual(exp(*range(5)), [1,2,3])
 
     def test_and(self):
         exp = self.keyparser.parse("a&b&c")
-        self.assertEqual(exp("a", "b", "d"), set())  # no item has and key a and key b and key c
+        self.assertEqual(exp("a", "b", "d"), [])  # no item has and key a and key b and key c
         exp = self.keyparser.parse("1&2&3")
-        self.assertEqual(exp(*range(5)), set())
+        self.assertEqual(exp(*range(5)), [])
 
     def test_not(self):
         exp = self.keyparser.parse("!a")
-        self.assertEqual(exp("a", "b", "c"), {"b", "c"})  # no item has and key a and key b and key c
+        self.assertEqual(exp("a", "b", "c"), ["b", "c"])  # no item has and key a and key b and key c
         exp = self.keyparser.parse("!1")
-        self.assertEqual(exp(*range(5)), {0,2,3,4})
+        self.assertEqual(exp(*range(5)), [0,2,3,4])
 
     def test_composite(self):
         exp = self.keyparser.parse("!a&b|c")
-        self.assertEqual(exp("a", "b", "c"), {"b", "c"})  # no item has and key a and key b and key c
+        self.assertEqual(exp("a", "b", "c"), ["b", "c"])  # no item has and key a and key b and key c
         exp = self.keyparser.parse("!1&2|3")
-        self.assertEqual(exp(*range(5)), {2,3})
+        self.assertEqual(exp(*range(5)), [2,3])
 
     def test_composite_with_slices(self):
         indices = tuple(range(10))
         exp = self.keyparser.parse(":")
-        self.assertEqual(exp(*indices), set(indices))
+        self.assertEqual(exp(*indices), list(indices))
         exp = self.keyparser.parse("*")
-        self.assertEqual(exp(*indices), set(indices))
+        self.assertEqual(exp(*indices), list(indices))
         exp = self.keyparser.parse("1:7|2:8|3:9")
-        self.assertEqual(exp(*indices), {1,2,3,4,5,6,7,8})
+        self.assertEqual(exp(*indices), [1,2,3,4,5,6,7,8])
         exp = self.keyparser.parse("1:7&2:8&3:9")
-        self.assertEqual(exp(*indices), {3,4,5,6})
+        self.assertEqual(exp(*indices), [3,4,5,6])
         exp = self.keyparser.parse("(::2&1:6|2::4)&!4")
-        self.assertEqual(exp(*indices), {2, 6})
+        self.assertEqual(exp(*indices), [2, 6])
 
     def test_composite_with_wildcards(self):
         keys = ("a", "b", "c", "aa", "ab", "ac", "bb", "bc", "cc")  # len(keys) == 10
         exp = self.keyparser.parse("*")
-        self.assertEqual(exp(*keys), set(keys))
+        self.assertEqual(exp(*keys), list(keys))
         exp = self.keyparser.parse("a*")
-        self.assertEqual(exp(*keys), {"a", "aa", "ab", "ac"})
+        self.assertEqual(exp(*keys), ["a", "aa", "ab", "ac"])
         exp = self.keyparser.parse("a?")
-        self.assertEqual(exp(*keys), {"aa", "ab", "ac"})
+        self.assertEqual(exp(*keys), ["aa", "ab", "ac"])
         exp = self.keyparser.parse("!a*")  # not starting with "a"
-        self.assertEqual(exp(*keys), {"b", "c", "bb", "bc", "cc"})
+        self.assertEqual(exp(*keys), ["b", "c", "bb", "bc", "cc"])
         exp = self.keyparser.parse("b*|c*")  # not starting with "a"
-        self.assertEqual(exp(*keys), {"b", "c", "bb", "bc", "cc"})
+        self.assertEqual(exp(*keys), ['b', 'bb', 'bc', 'c', 'cc'])
         exp = self.keyparser.parse("b*&*c")  # not starting with "a"
-        self.assertEqual(exp(*keys), {"bc"})
+        self.assertEqual(exp(*keys), ["bc"])
 
     def test_simple_keys(self):
         keys = ("a", "b", "c")
-        wildkey_expected = {"*": {"a", "b", "c"},
-                            "(*)": {"a", "b", "c"},
-                            "!(*)":set(),
-                            "(!*)": set(),
-                            "a": {"a"},
-                            "!a": {"b", "c"},
-                            "a*": {"a"},
-                            "!a*": {"b", "c"},
-                            "!(a*)": {"b", "c"},
-                            "a|b": {"a", "b"},
-                            "a&b": set(),
-                            "a|!b": {"a", "c"},
-                            "a&!b": {"a"},
-                            "!(a|b)": {"c"},
-                            "!(a&b)": {"a", "b", "c"}}
+        wildkey_expected = {"*": ["a", "b", "c"],
+                            "(*)": ["a", "b", "c"],
+                            "!(*)":list(),
+                            "(!*)": list(),
+                            "a": ["a"],
+                            "!a": ["b", "c"],
+                            "a*": ["a"],
+                            "!a*": ["b", "c"],
+                            "!(a*)": ["b", "c"],
+                            "a|b": ["a", "b"],
+                            "a&b": list(),
+                            "a|!b": ["a", "c"],
+                            "a&!b": ["a"],
+                            "!(a|b)": ["c"],
+                            "!(a&b)": ["a", "b", "c"]}
         for wildkey, expected in wildkey_expected.items():
             expression = self.keyparser.parse(wildkey)
-            self.assertEqual(expression(*keys), expected)
+            self.assertEqual(expression(*keys), expected, msg="wildkey '%s' applied to '%s' gives '%s' not '%s'" % (
+                wildkey,
+                keys,
+                expression(*keys),
+                expected))
 
     def test_simple_indexes(self):
         keys = tuple(range(3))
-        wildkey_expected = {"*": {0,1,2},
-                            ":": {0,1,2},
-                            "(:)": {0,1,2},
-                            "!(:)":set(),
-                            "(!:)": set(),
-                            "1": {1},
-                            "!1": {0, 2},
-                            "1:": {1,2},
-                            "!1:": {0},
-                            "!(1:)": {0},
-                            "1|2": {1, 2},
-                            "1&2": set(),
-                            "1|!2": {0, 1},
-                            "1&!2": {1},
-                            "!(1|2)": {0},
-                            "!(1&2)": {0,1,2}}
+        wildkey_expected = {"*": [0,1,2],
+                            ":": [0,1,2],
+                            "(:)": [0,1,2],
+                            "!(:)":list(),
+                            "(!:)": list(),
+                            "1": [1],
+                            "!1": [0, 2],
+                            "1:": [1,2],
+                            "!1:": [0],
+                            "!(1:)": [0],
+                            "1|2": [1, 2],
+                            "1&2": list(),
+                            "1|!2": [1, 0],
+                            "1&!2": [1],
+                            "!(1|2)": [0],
+                            "!(1&2)": [0,1,2]}
         for wildkey, expected in wildkey_expected.items():
             expression = self.keyparser.parse(wildkey)
-            self.assertEqual(expression(*keys), expected)
+            self.assertEqual(expression(*keys), expected, msg="wildkey '%s' applied to '%s' gives '%s' not '%s'" % (
+                wildkey,
+                keys,
+                expression(*keys),
+                expected))
 
     def test_alt_keys(self):
-        keys = {"a", "b", "a b"}
-        wildkey_expected = {"*": {"a", "b", "a b"},
-                            "(*)": {"a", "b", "a b"},
-                            "!(*)":set(),
-                            "(!*)": set(),
-                            "a": {"a"},
-                            "!a": {"b", "a b"},
-                            "a*": {"a", "a b"},
-                            "!a*": {"b"},
-                            "!(a*)": {"b"},
-                            "a|b": {"a", "b"},
-                            "a&b": set(),
-                            "a|!b": {"a", "a b"},
-                            "a&!b": {"a"},
-                            "!(a|b)": {"a b"},
-                            "!(a&b)": {"a", "b", "a b"}}
+        keys = ["a", "b", "a b"]
+        wildkey_expected = {"*": ["a", "b", "a b"],
+                            "(*)": ["a", "b", "a b"],
+                            "!(*)":list(),
+                            "(!*)": list(),
+                            "a": ["a"],
+                            "!a": ["b", "a b"],
+                            "a*": ["a", "a b"],
+                            "!a*": ["b"],
+                            "!(a*)": ["b"],
+                            "a|b": ["a", "b"],
+                            "a&b": list(),
+                            "a|!b": ["a", "a b"],
+                            "a&!b": ["a"],
+                            "!(a|b)": ["a b"],
+                            "!(a&b)": ["a", "b", "a b"]}
         for wildkey, expected in wildkey_expected.items():
             expression = self.keyparser.parse(wildkey)
-            self.assertEqual(expression(*keys), expected)
+            self.assertEqual(expression(*keys), expected, msg="wildkey '%s' applied to '%s' gives '%s' not '%s'" % (
+                wildkey,
+                keys,
+                expression(*keys),
+                expected))
 
 
 class TestLogicPath(TestBase):
@@ -721,7 +733,7 @@ class TestVarious(unittest.TestCase):
         class TestDescriptor(object):
             def __get__(self, obj, cls):
                 if obj is None:
-                    return cls
+                    return self
                 return obj.attr
 
             def __set__(self, obj, value):
@@ -832,7 +844,7 @@ class TestDocs(TestBase):
             assert wildpath.get_in(agenda) == ["opening", "progress"]
 
             wildpath = WildPath("items.-1::-1.name")
-            assert wildpath.get_in(agenda) == ["opening", "progress", "closing"]
+            assert wildpath.get_in(agenda) == ["closing", "progress", "opening"]
         except Exception as e:
             self.fail(e)
 

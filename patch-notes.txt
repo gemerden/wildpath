@@ -25,4 +25,10 @@ version 0.2.1
 
   - fixes string items in object sometimes returning doubles when `flat=True`
 
+version 0.2.5
 
+  - always return dicts or list or normal values, instead of trying to copy the original classes (was mainly for OrderedDicts
+        but the compact dict implementation of pyhton 3.6 makes that unnecessary and e.g. default dicts would cause issues),
+  - maintains order of original lists (and in python 3.6 dicts) better, e.g. negative slice steps (WildPath("::-1") will now
+        reverse order,
+  - refactors and small fixes; get_in will now also get funtion instance attributes.

@@ -5,6 +5,7 @@ from boolean import BooleanAlgebra, AND, OR, NOT, Symbol
 from boolean import ParseError, TOKEN_SYMBOL, TOKEN_NOT, TOKEN_AND, TOKEN_OR, TOKEN_LPAR, TOKEN_RPAR
 from boolean.boolean import PARSE_UNKNOWN_TOKEN
 
+from wildpath.tools import dedoubled
 
 try:
     basestring
@@ -27,17 +28,17 @@ class WildSymbol(Symbol):
     def __call__(self, *keys):
         wild_key = self.obj
         if not len(keys) or wild_key is self.ALL:
-            return set(keys)
+            return list(keys)
         if isinstance(keys[0], str):  # all keys are str or all keys are int
-            return set(k for k in keys if fnmatchcase(k, wild_key))
+            return [k for k in keys if fnmatchcase(k, wild_key)]
         try:
             index = int(wild_key)
         except TypeError:
-            return set(range(*wild_key.indices(len(keys))))
+            return list(range(*wild_key.indices(len(keys))))
         else:
             while index < 0:
                 index += len(keys)
-            return {index} if index in keys else set()
+            return [index] if index in keys else []
 
     def __lt__(self, other):
         """ due to small bug in boolean.py """
@@ -45,22 +46,24 @@ class WildSymbol(Symbol):
 
 
 
-class SET_NOT(NOT):
+class LIST_NOT(NOT):
 
     def __call__(self, *keys):
-        return set(keys) - self.args[0](*keys)
+        not_keys = self.args[0](*keys)
+        return [k for k in keys if k not in not_keys]
 
 
-class SET_OR(OR):
-
-    def __call__(self, *keys):
-        return set.union(*(a(*keys) for a in self.args))
-
-
-class SET_AND(AND):
+class LIST_OR(OR):
 
     def __call__(self, *keys):
-        return set.intersection(*(a(*keys) for a in self.args))
+        return dedoubled(sum((a(*keys) for a in self.args), []))
+
+
+class LIST_AND(AND):
+
+    def __call__(self, *keys):
+        key_lists = [a(*keys) for a in self.args]
+        return [k for k in key_lists[0] if all(k in kl for kl in key_lists)]
 
 
 class KeyParser(BooleanAlgebra):
@@ -75,9 +78,9 @@ class KeyParser(BooleanAlgebra):
 
     def __init__(self, TOKENS=None, *args, **kwargs):
         super(KeyParser, self).__init__(Symbol_class=WildSymbol,
-                                        OR_class=SET_OR,
-                                        AND_class=SET_AND,
-                                        NOT_class=SET_NOT,
+                                        OR_class=LIST_OR,
+                                        AND_class=LIST_AND,
+                                        NOT_class=LIST_NOT,
                                         *args, **kwargs)
         self.TOKENS = TOKENS or self.DEFAULT_TOKENS
 
