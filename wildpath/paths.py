@@ -16,6 +16,156 @@ __author__ = "Lars van Gemerden"
 
 _marker = object()
 
+GET = 0
+SET = 1
+DEL = 2
+
+
+
+def is_attr(obj, key):
+    return  (hasattr(obj, key)
+             and not (key.startswith("__") and key.endswith("__"))
+             and not callable(getattr(obj.__class__, key, None)))
+
+
+def _get_object_dict(obj, is_attr=is_attr):
+    return {name: getattr(obj, name) for name in dir(obj) if is_attr(obj, name)}
+
+
+def _get_with_key(value, k):
+    if isinstance(value, Mapping):
+        return value[k]
+    return value
+
+
+def _get_with_index(value, index):
+    if isinstance(value, value_sequence_types):
+        return value
+    if isinstance(value, Sequence):
+        return value[index]
+    return value
+
+
+def _get_path_accessor(access):
+    def seq_getter(obj, key):  # key to int conversion
+        return obj[int(key)]
+    def seq_setter(obj, key, value):  # key to int conversion
+        obj[int(key)] = value
+    def seq_deleter(obj, key):  # key to int conversion
+        del obj[int(key)]
+
+    if access is GET:
+        def path_accessor(obj, key):
+            if isinstance(obj, Mapping):
+                return obj.__class__.__getitem__
+            elif isinstance(obj, Sequence):
+                try:
+                    int(key)
+                except ValueError:
+                    return getattr
+                else:
+                    return seq_getter
+            else:
+                return getattr
+    elif access is SET:
+        def path_accessor(obj, key):
+            if isinstance(obj, MutableMapping):
+                return obj.__class__.__setitem__
+            elif isinstance(obj, MutableSequence):
+                try:
+                    int(key)
+                except ValueError:
+                    return setattr
+                else:
+                    return seq_setter
+            else:
+                return setattr
+    elif access is DEL:
+        def path_accessor(obj, key):
+            if isinstance(obj, MutableMapping):
+                return obj.__class__.__delitem__
+            elif isinstance(obj, MutableSequence):
+                try:
+                    int(key)
+                except ValueError:
+                    return delattr
+                else:
+                    return seq_deleter
+            else:
+                return delattr
+    else:
+        raise ValueError("unknown access type: %s" % access)
+    return path_accessor
+
+def _get_wild_accessor(access, preprocessed, get_with_key=_get_with_key, get_with_index=_get_with_index):
+    
+    def map_getter(obj, path, default):
+        return {k: path[1:]._get_in(obj[k], default) for k in preprocessed[path[0]](*obj)}
+    def seq_getter(obj, path, default):
+        return [path[1:]._get_in(obj[i], default) for i in preprocessed[path[0]](*range(len(obj)))]
+    def obj_getter(obj, path, default):
+        obj_dict = _get_object_dict(obj)
+        return {k: path[1:]._get_in(obj_dict[k], default) for k in preprocessed[path[0]](*obj_dict)}
+
+    def map_setter(obj, path, value):
+        for k in preprocessed[path[0]](*obj):
+            path[1:]._set_in(obj[k], get_with_key(value, k))
+    def seq_setter(obj, key, value):
+        for i, j in enumerate(preprocessed[key](*range(len(obj)))):
+            obj[j] = get_with_index(value, i)
+    def obj_setter(obj, key, value):
+        obj[int(key)] = value
+
+    def map_deleter(obj, key):
+        del obj[int(key)]
+    def seq_deleter(obj, key):
+        del obj[int(key)]
+    def obj_deleter(obj, key):
+        del obj[int(key)]
+
+    if access is GET:
+        def wild_accessor(obj, key):
+            if isinstance(obj, Mapping):
+                return map_getter
+            elif isinstance(obj, Sequence):
+                try:
+                    preprocessed[key](*range(len(obj)))
+                except ValueError:
+                    return obj_getter
+                else:
+                    return seq_getter
+            else:
+                return obj_getter
+    elif access is SET:
+        def wild_accessor(obj, key):
+            if isinstance(obj, Mapping):
+                return map_getter
+            elif isinstance(obj, Sequence):
+                try:
+                    preprocessed[key](*range(len(obj)))
+                except ValueError:
+                    return obj_getter
+                else:
+                    return seq_getter
+            else:
+                return obj_getter
+    elif access is DEL:
+        def wild_accessor(obj, key):
+            if isinstance(obj, Mapping):
+                return map_getter
+            elif isinstance(obj, Sequence):
+                try:
+                    preprocessed[key](*range(len(obj)))
+                except ValueError:
+                    return obj_getter
+                else:
+                    return seq_getter
+            else:
+                return obj_getter
+    else:
+        raise ValueError("unknown access type: %s" % access)
+    return wild_accessor
+
 
 class BasePath(tuple):
     """
@@ -139,16 +289,11 @@ class Path(BasePath):
     def call_in(self, obj, *args, **kwargs):
         return self.get_in(obj)(*args, **kwargs)
 
-    def _get_in(self, obj, default=_marker):
+    def _get_in(self, obj, default=_marker, getter=_get_path_accessor(GET)):
         """returns item at wildpath 'self' from the 'obj'"""
         try:
             for key in self:
-                if isinstance(obj, Mapping):
-                    obj = obj[key]
-                elif isinstance(obj, Sequence):
-                    obj = obj[int(key)]
-                else:
-                    obj = getattr(obj, key)
+                obj = getter(obj, key)(obj, key)
         except (KeyError, IndexError, AttributeError):
             if default is _marker:
                 raise
@@ -156,44 +301,17 @@ class Path(BasePath):
         else:
             return obj
 
-    def _set_in(self, obj, value):
+    def _set_in(self, obj, value, setter=_get_path_accessor(SET)):
         """sets item at wildpath 'self' from the 'obj' to 'value'"""
         obj = self[:-1]._get_in(obj)
-        if isinstance(obj, MutableMapping):
-            obj[self[-1]] = value
-        elif isinstance(obj, MutableSequence):
-            obj[int(self[-1])] = value
-        else:
-            setattr(obj, self[-1], value)
+        key = self[-1]
+        setter(obj, key)(obj, key, value)
 
-    def _del_in(self, obj):
+    def _del_in(self, obj, deleter=_get_path_accessor(DEL)):
         """deletes item at wildpath 'self' from the 'obj'"""
         obj = self[:-1]._get_in(obj)
-        if isinstance(obj, MutableMapping):
-            del obj[self[-1]]
-        elif isinstance(obj, MutableSequence):
-            del obj[int(self[-1])]
-        else:
-            delattr(obj, self[-1])
-
-
-def _get_object_dict(obj):
-    return {name: getattr(obj, name) for name in dir(obj) if not (name.startswith("__") and name.endswith("__"))
-            and not callable(getattr(obj.__class__, name, None))}
-
-
-def _get_with_key(value, k):
-    if isinstance(value, Mapping):
-        return value[k]
-    return value
-
-
-def _get_with_index(value, index):
-    if isinstance(value, value_sequence_types):
-        return value
-    if isinstance(value, Sequence):
-        return value[index]
-    return value
+        key = self[-1]
+        deleter(obj, key)(obj, key)
 
 
 class WildPath(BasePath):
@@ -209,11 +327,11 @@ class WildPath(BasePath):
 
     _preprocessed = {}
 
-    def __new__(cls, string_or_seq=None, _parse=algebra.parse, _tokens=tokens, preprocessed=_preprocessed):
+    def __new__(cls, string_or_seq=None, _parse=algebra.parse, _tokens=set(tokens), preprocessed=_preprocessed):
         self = super(WildPath, cls).__new__(cls, string_or_seq)
         for wild_key in self:
             #  if wild_cards or slicing are used, multiple results are returned and the boolean logic is applied
-            if wild_key not in preprocessed and any(t in wild_key for t in _tokens):
+            if wild_key not in preprocessed and any(t in _tokens for t in wild_key):
                 preprocessed[wild_key] = _parse(wild_key, simplify=True)
         self.depth = self._get_depth()
         return self
@@ -234,54 +352,36 @@ class WildPath(BasePath):
             return flatten(result, depth=self.depth)
         return result
 
-    def _get_in(self, obj, default=_marker, get_object_dict=_get_object_dict,
-                                            preprocessed=_preprocessed):
+    def _get_in(self, obj, default=_marker,
+                get_object_dict=_get_object_dict,
+                path_getter=_get_path_accessor(GET),
+                wild_getter=_get_wild_accessor(GET, _preprocessed),
+                preprocessed=_preprocessed):
         """returns item(s) at wildpath 'self' from the 'obj'"""
         if not len(self):
             return obj
         key = self[0]
         if key in preprocessed:  # this is not a single key or index
-            if len(self) == 1:
-                if isinstance(obj, Mapping):
-                    return {k: obj[k] for k in preprocessed[key](*obj)}
-                elif isinstance(obj, Sequence):
-                    return [obj[i] for i in preprocessed[key](*range(len(obj)))]
-                else:
-                    obj_dict = get_object_dict(obj)
-                    return {k: obj_dict[k] for k in preprocessed[key](*obj_dict)}
-            else:
-                if isinstance(obj, Mapping):
-                    return {k: self[1:]._get_in(obj[k], default) for k in preprocessed[key](*obj)}
-                elif isinstance(obj, Sequence):
-                    return [self[1:].get_in(obj[i], default) for i in preprocessed[key](*range(len(obj)))]
-                else:
-                    obj_dict = get_object_dict(obj)
-                    return {k: self[1:]._get_in(obj_dict[k], default) for k in preprocessed[key](*obj_dict)}
+            return wild_getter(obj, key)(obj, self, default)
         else:
+            getter = path_getter(obj, key)
             if len(self) == 1:
                 try:
-                    if isinstance(obj, Mapping):
-                        return obj[key]
-                    elif isinstance(obj, Sequence):
-                        return obj[int(key)]
-                    else:
-                        return getattr(obj, key)
+                    return getter(obj, key)
                 except (KeyError, IndexError, AttributeError):
                     if default is _marker:
                         raise
                     return default
             else:
-                if isinstance(obj, Mapping):
-                    return self[1:]._get_in(obj[key], default)
-                elif isinstance(obj, Sequence):
-                    return self[1:]._get_in(obj[int(key)], default)
-                else:
-                    return self[1:]._get_in(getattr(obj, key), default)
+                return self[1:]._get_in(getter(obj, key))
 
-    def _set_in(self, obj, value, get_object_dict=_get_object_dict,
-                                  get_with_key=_get_with_key,  # speed up function access
-                                  get_with_index=_get_with_index,
-                                  preprocessed=_preprocessed):
+    def _set_in(self, obj, value,
+                get_object_dict=_get_object_dict,
+                get_with_key=_get_with_key,  # speed up function access
+                get_with_index=_get_with_index,
+                path_setter=_get_path_accessor(SET),
+                wild_setter=_get_wild_accessor(SET, _preprocessed),
+                preprocessed=_preprocessed):
         """sets item(s) at wildpath 'self' of 'obj' to 'value'"""
         key = self[0]
         if key in preprocessed:
@@ -307,13 +407,9 @@ class WildPath(BasePath):
                     for k in preprocessed[key](*obj_dict):
                         self[1:]._set_in(obj_dict[k], get_with_key(value, k))
         else:
+            setter = path_setter(obj, key)
             if len(self) == 1:
-                if isinstance(obj, MutableMapping):
-                    obj[key] = value
-                elif isinstance(obj, MutableSequence):
-                    obj[int(key)] = value
-                else:
-                    setattr(obj, key, value)
+                setter(obj, key, value)
             else:
                 if isinstance(obj, MutableMapping):
                     self[1:]._set_in(obj[key], _get_with_key(value, key))
@@ -324,7 +420,9 @@ class WildPath(BasePath):
 
 
     def _del_in(self, obj, get_object_dict=_get_object_dict,
-                           preprocessed=_preprocessed):
+                preprocessed=_preprocessed,
+                path_deleter=_get_path_accessor(DEL),
+                wild_deleter=_get_wild_accessor(DEL, _preprocessed)):
         """deletes item(s) at wildpath 'self' from the 'obj'"""
         key = self[0]
         if key in preprocessed:
