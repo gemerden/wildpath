@@ -147,6 +147,25 @@ class TestPath(TestBase):
         with self.assertRaises(AttributeError):
             Path("e.2.x").get_in(s)
 
+    def test_sequence_class(self):
+        class ListObject(list):
+            def __init__(self, items, value):
+                super(ListObject, self).__init__(items)
+                self.value = value
+
+        obj = ListObject([1,2,3], value=["a", "b", "c"])
+        self.assertEqual(Path("1").get_in(obj), 2)
+        self.assertEqual(Path("value.1").get_in(obj), "b")
+        Path("1").set_in(obj, 4)
+        Path("value.1").set_in(obj, "d")
+        self.assertEqual(Path("1").get_in(obj), 4)
+        self.assertEqual(Path("value.1").get_in(obj), "d")
+        Path("1").del_in(obj)
+        Path("value.1").del_in(obj)
+        self.assertEqual(Path("1").get_in(obj), 3)
+        self.assertEqual(Path("value.1").get_in(obj), "c")
+
+
 class TestWildPath(TestBase):
 
     def test_pop(self):

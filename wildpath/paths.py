@@ -146,7 +146,12 @@ class Path(BasePath):
                 if isinstance(obj, Mapping):
                     obj = obj[key]
                 elif isinstance(obj, Sequence):
-                    obj = obj[int(key)]
+                    try:
+                        index = int(key)
+                    except ValueError:
+                        obj = getattr(obj, key)
+                    else:
+                        obj = obj[index]
                 else:
                     obj = getattr(obj, key)
         except (KeyError, IndexError, AttributeError):
@@ -162,7 +167,12 @@ class Path(BasePath):
         if isinstance(obj, MutableMapping):
             obj[self[-1]] = value
         elif isinstance(obj, MutableSequence):
-            obj[int(self[-1])] = value
+            try:
+                index = int(self[-1])
+            except ValueError:
+                setattr(obj, self[-1], value)
+            else:
+                obj[index] = value
         else:
             setattr(obj, self[-1], value)
 
@@ -172,7 +182,12 @@ class Path(BasePath):
         if isinstance(obj, MutableMapping):
             del obj[self[-1]]
         elif isinstance(obj, MutableSequence):
-            del obj[int(self[-1])]
+            try:
+                index = int(self[-1])
+            except ValueError:
+                delattr(obj, self[-1])
+            else:
+                del obj[index]
         else:
             delattr(obj, self[-1])
 
@@ -245,7 +260,13 @@ class WildPath(BasePath):
                 if isinstance(obj, Mapping):
                     return {k: obj[k] for k in preprocessed[key](*obj)}
                 elif isinstance(obj, Sequence):
-                    return [obj[i] for i in preprocessed[key](*range(len(obj)))]
+                    try:
+                        indices = preprocessed[key](*range(len(obj)))
+                    except ValueError:
+                        obj_dict = get_object_dict(obj)
+                        return {k: obj_dict[k] for k in preprocessed[key](*obj_dict)}
+                    else:
+                        return [obj[i] for i in indices]
                 else:
                     obj_dict = get_object_dict(obj)
                     return {k: obj_dict[k] for k in preprocessed[key](*obj_dict)}
@@ -253,7 +274,13 @@ class WildPath(BasePath):
                 if isinstance(obj, Mapping):
                     return {k: self[1:]._get_in(obj[k], default) for k in preprocessed[key](*obj)}
                 elif isinstance(obj, Sequence):
-                    return [self[1:].get_in(obj[i], default) for i in preprocessed[key](*range(len(obj)))]
+                    try:
+                        indices = preprocessed[key](*range(len(obj)))
+                    except ValueError:
+                        obj_dict = get_object_dict(obj)
+                        return {k: self[1:]._get_in(obj_dict[k], default) for k in preprocessed[key](*obj_dict)}
+                    else:
+                        return [self[1:].get_in(obj[i], default) for i in indices]
                 else:
                     obj_dict = get_object_dict(obj)
                     return {k: self[1:]._get_in(obj_dict[k], default) for k in preprocessed[key](*obj_dict)}
@@ -263,7 +290,12 @@ class WildPath(BasePath):
                     if isinstance(obj, Mapping):
                         return obj[key]
                     elif isinstance(obj, Sequence):
-                        return obj[int(key)]
+                        try:
+                            index = int(key)
+                        except ValueError:
+                            return getattr(obj, key)
+                        else:
+                            return obj[index]
                     else:
                         return getattr(obj, key)
                 except (KeyError, IndexError, AttributeError):
@@ -274,7 +306,12 @@ class WildPath(BasePath):
                 if isinstance(obj, Mapping):
                     return self[1:]._get_in(obj[key], default)
                 elif isinstance(obj, Sequence):
-                    return self[1:]._get_in(obj[int(key)], default)
+                    try:
+                        index = int(key)
+                    except ValueError:
+                        return self[1:]._get_in(getattr(obj, key), default)
+                    else:
+                        return self[1:]._get_in(obj[index], default)
                 else:
                     return self[1:]._get_in(getattr(obj, key), default)
 
@@ -290,8 +327,14 @@ class WildPath(BasePath):
                     for k in preprocessed[key](*obj):
                         obj[k] = get_with_key(value, k)
                 elif isinstance(obj, MutableSequence):
-                    for i, j in enumerate(preprocessed[key](*range(len(obj)))):
-                        obj[j] = get_with_index(value, i)
+                    try:
+                        indices = preprocessed[key](*range(len(obj)))
+                    except ValueError:
+                        for k in preprocessed[key](*get_object_dict(obj)):
+                            setattr(obj, k, get_with_key(value, k))
+                    else:
+                        for i, j in enumerate(indices):
+                            obj[j] = get_with_index(value, i)
                 else:
                     for k in preprocessed[key](*get_object_dict(obj)):
                         setattr(obj, k, get_with_key(value, k))
@@ -300,25 +343,42 @@ class WildPath(BasePath):
                     for k in preprocessed[key](*obj):
                         self[1:]._set_in(obj[k], get_with_key(value, k))
                 elif isinstance(obj, MutableSequence):
-                    for i, j in enumerate(preprocessed[key](*range(len(obj)))):
-                        self[1:]._set_in(obj[j], get_with_index(value, i))
+                    try:
+                        indices = preprocessed[key](*range(len(obj)))
+                    except ValueError:
+                        obj_dict = get_object_dict(obj)
+                        for k in preprocessed[key](*obj_dict):
+                            self[1:]._set_in(obj_dict[k], _get_with_key(value, k))
+                    else:
+                        for i, j in enumerate(indices):
+                            self[1:]._set_in(obj[j], _get_with_index(value, i))
                 else:
                     obj_dict = get_object_dict(obj)
                     for k in preprocessed[key](*obj_dict):
-                        self[1:]._set_in(obj_dict[k], get_with_key(value, k))
+                        self[1:]._set_in(obj_dict[k], _get_with_key(value, k))
         else:
             if len(self) == 1:
                 if isinstance(obj, MutableMapping):
                     obj[key] = value
                 elif isinstance(obj, MutableSequence):
-                    obj[int(key)] = value
+                    try:
+                        index = int(key)
+                    except ValueError:
+                        setattr(obj, key, value)
+                    else:
+                        obj[index] = value
                 else:
                     setattr(obj, key, value)
             else:
                 if isinstance(obj, MutableMapping):
                     self[1:]._set_in(obj[key], _get_with_key(value, key))
                 elif isinstance(obj, MutableSequence):
-                    self[1:]._set_in(obj[int(key)], _get_with_index(value, int(key)))
+                    try:
+                        index = int(key)
+                    except ValueError:
+                        self[1:]._set_in(getattr(obj, key), _get_with_key(value, key))
+                    else:
+                        self[1:]._set_in(obj[index], _get_with_index(value, index))
                 else:
                     self[1:]._set_in(getattr(obj, key), _get_with_key(value, key))
 
@@ -333,9 +393,15 @@ class WildPath(BasePath):
                     for k in preprocessed[key](*obj):
                         del obj[k]
                 elif isinstance(obj, MutableSequence):
-                    for i in preprocessed[key](*range(len(obj))):
-                        obj[i] = _marker  # marked for deletion
-                    obj[:] = [v for v in obj if v is not _marker]
+                    try:
+                        indices = preprocessed[key](*range(len(obj)))
+                    except ValueError:
+                        for k in preprocessed[key](*get_object_dict(obj)):
+                            delattr(obj, k)
+                    else:
+                        for i in indices:
+                            obj[i] = _marker  # marked for deletion
+                        obj[:] = [v for v in obj if v is not _marker]
                 else:
                     for k in preprocessed[key](*get_object_dict(obj)):
                         delattr(obj, k)
@@ -344,8 +410,15 @@ class WildPath(BasePath):
                     for k in preprocessed[key](*obj):
                         self[1:]._del_in(obj[k])
                 elif isinstance(obj, MutableSequence):
-                    for i in preprocessed[key](*range(len(obj))):
-                        self[1:]._del_in(obj[i])
+                    try:
+                        indices = preprocessed[key](*range(len(obj)))
+                    except ValueError:
+                        obj_dict = get_object_dict(obj)
+                        for k in preprocessed[key](*obj_dict):
+                            self[1:]._del_in(obj_dict[k])
+                    else:
+                        for i in indices:
+                            self[1:]._del_in(obj[i])
                 else:
                     obj_dict = get_object_dict(obj)
                     for k in preprocessed[key](*obj_dict):
@@ -355,14 +428,24 @@ class WildPath(BasePath):
                 if isinstance(obj, MutableMapping):
                     del obj[key]
                 elif isinstance(obj, MutableSequence):
-                    del obj[int(key)]
+                    try:
+                        index = int(key)
+                    except ValueError:
+                        delattr(obj, key)
+                    else:
+                        del obj[index]
                 else:
                     delattr(obj, key)
             else:
                 if isinstance(obj, MutableMapping):
                     self[1:]._del_in(obj[key])
                 elif isinstance(obj, MutableSequence):
-                    self[1:]._del_in(obj[int(key)])
+                    try:
+                        index = int(key)
+                    except ValueError:
+                        self[1:]._del_in(getattr(obj, key))
+                    else:
+                        self[1:]._del_in(obj[index])
                 else:
                     self[1:]._del_in(getattr(obj, key))
 

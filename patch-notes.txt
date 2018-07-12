@@ -32,3 +32,15 @@ version 0.2.5
   - maintains order of original lists (and in python 3.6 dicts) better, e.g. negative slice steps (WildPath("::-1") will now
         reverse order,
   - refactors and small fixes; get_in will now also get funtion instance attributes.
+
+version 0.2.6
+
+  - small fixes
+
+version 0.2.7
+
+  - classes implementing (Mutable-) Sequence will handle string keys (int(key) fails) to look up attributes and integers and
+        slices to access list elements.
+
+
+
