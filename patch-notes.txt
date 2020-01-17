@@ -42,5 +42,9 @@ version 0.2.7
   - classes implementing (Mutable-) Sequence will handle string keys (int(key) fails) to look up attributes and integers and
         slices to access list elements.
 
+version 0.3.0
+
+  - python3 only; removes some unnecessary code, functionelly the same, will be pushed tp PyPI as wildpath3
+
 
 

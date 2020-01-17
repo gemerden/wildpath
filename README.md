@@ -4,12 +4,16 @@
 
 A path abstraction to access items in composite (e.g. JSON) objects in python.
 
+## Installation
+
+WildPath can be easily installed with `pip install wildpath`
+
 ## Introduction
 
 This module is intended primarily as a practical tool to access data in complex data structures. Especially accessing multiple items usually requires for-loops or other constructs and there is no straightforward way to pass nested locations as single parameters. This module solves this problem by introdicing 2 classes:
  
   - `Path` allows to get, set and delete single items in the data structure; it is optimized for speed,
-  - `WildPath` does the same and allows wildcards and boolean logic (and, or, not) in paths to get, set and delete to multiple items in one call,
+  - `WildPath` does the same and allows wildcards and boolean logic (`and, or, not`) in paths to get, set and delete to multiple items in one call,
   -  Both have iterators (in the common baseclass) to run through all paths and values in a data structure.
 
 As an typical example we take the JSON response of a call to `maps.googleapis.com` for the route between 2 addresses. The response is over 390 lines of JSON if nicely formatted. However we will only be interested in the geo_locations of the individual steps (turn-by-turn instructions) of the route.
@@ -57,9 +61,6 @@ Essentially the function definition is replaced by a string, using `WildPath.get
  - Better readability and maintainablity (once you get used to the path-notation),
  - A `Path` or `WildPath` is easily serializable (`str(Path("a.b.c")) == "a.b.c"`), where a function definition is not.
 
-## Prerequisites
-
-The module can be installed with `pip install wildpath`. It is tested for both python 2.7 and python 3.3 to 3.6.
   
 ## Functionality
 
