@@ -1,6 +1,5 @@
 from copy import copy
 from collections import Mapping, Sequence, MutableMapping, MutableSequence
-from inspect import ismethod
 
 from wildpath.keyparser import KeyParser
 from wildpath.tools import value_sequence_types, flatten

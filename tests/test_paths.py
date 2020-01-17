@@ -4,8 +4,8 @@ from copy import deepcopy
 
 from tests.samples import agenda
 from tests.samples import google_route
+from wildpath import Path, WildPath
 from wildpath.keyparser import KeyParser
-from wildpath.paths import Path, WildPath
 
 
 class Object(object):
