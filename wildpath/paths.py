@@ -13,7 +13,7 @@ _marker = object()
 
 class BasePath(tuple):
     """
-    Helper classes to be able to use '.' separated paths to access elements in objects, lists and dictionaries.
+    Classes to be able to use '.' separated paths to access elements in objects, lists and dictionaries.
     """
     sep = "."
 
@@ -80,9 +80,6 @@ class BasePath(tuple):
         if isinstance(key, slice):
             return self.__class__(tuple.__getitem__(self, key))
         return tuple.__getitem__(self, key)
-
-    def __getslice__(self, i, j):
-        return self.__getitem__(slice(i, j))
 
     def get_in(self, obj, default=_marker):
         return self._get_in(obj, default)
