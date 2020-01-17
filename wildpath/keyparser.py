@@ -7,11 +7,6 @@ from boolean.boolean import PARSE_UNKNOWN_TOKEN
 
 from wildpath.tools import dedoubled
 
-try:
-    basestring
-except NameError:
-    basestring = str
-
 
 class WildSymbol(Symbol):
 
@@ -104,7 +99,7 @@ class KeyParser(BooleanAlgebra):
 
         A TOKEN_SYMBOL is returned for any string without tokens
         """
-        if not isinstance(expr, basestring):
+        if not isinstance(expr, str):
             raise TypeError('expr must be string but it is %s.' % type(expr))
         TOKENS = self.TOKENS
         length = len(expr)

@@ -13,8 +13,8 @@ except (IOError, ImportError):
         long_description = f.read()
 
 setup(
-    name='wildpath',
-    version='0.2.7',
+    name='wildpath3',
+    version='0.3.0',
     description='easy data structure access utility',
     long_description=long_description,
     author='Lars van Gemerden',
@@ -36,13 +36,12 @@ setup(
 
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
     ],
     # python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, <4',
     keywords='access data structure getter setter deleter iterator utility tool path wildcard slice',
