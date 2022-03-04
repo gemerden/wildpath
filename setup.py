@@ -2,8 +2,8 @@ from setuptools import setup
 
 
 setup(
-    name='wildpath3',
-    version='0.3.0',
+    name='wildpath',
+    version='0.3.1',
     description='easy data structure access utility',
     long_description='see <https://github.com/gemerden/wildpath>',
     author='Lars van Gemerden',
