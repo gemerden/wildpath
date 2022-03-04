@@ -4,9 +4,7 @@ from typing import Mapping, Sequence, MutableMapping, MutableSequence
 from wildpath.keyparser import KeyParser
 from wildpath.tools import value_sequence_types, flatten
 
-
 __author__ = "Lars van Gemerden"
-
 
 _marker = object()
 
@@ -226,7 +224,7 @@ class WildPath(BasePath):
 
     def _get_depth(self):
         prep = self._preprocessed
-        return len([k for k in self if k in prep])-1
+        return len([k for k in self if k in prep]) - 1
 
     def call_in(self, obj, *args, **kwargs):
         results = self.get_in(obj)
@@ -241,7 +239,7 @@ class WildPath(BasePath):
         return result
 
     def _get_in(self, obj, default=_marker, get_object_dict=_get_object_dict,
-                                            preprocessed=_preprocessed):
+                preprocessed=_preprocessed):
         """returns item(s) at wildpath 'self' from the 'obj'"""
         if not len(self):
             return obj
@@ -307,9 +305,9 @@ class WildPath(BasePath):
                     return self[1:]._get_in(getattr(obj, key), default)
 
     def _set_in(self, obj, value, get_object_dict=_get_object_dict,
-                                  get_with_key=_get_with_key,  # speed up function access
-                                  get_with_index=_get_with_index,
-                                  preprocessed=_preprocessed):
+                get_with_key=_get_with_key,  # speed up function access
+                get_with_index=_get_with_index,
+                preprocessed=_preprocessed):
         """sets item(s) at wildpath 'self' of 'obj' to 'value'"""
         key = self[0]
         if key in preprocessed:
@@ -373,9 +371,8 @@ class WildPath(BasePath):
                 else:
                     self[1:]._set_in(getattr(obj, key), _get_with_key(value, key))
 
-
     def _del_in(self, obj, get_object_dict=_get_object_dict,
-                           preprocessed=_preprocessed):
+                preprocessed=_preprocessed):
         """deletes item(s) at wildpath 'self' from the 'obj'"""
         key = self[0]
         if key in preprocessed:
@@ -439,7 +436,6 @@ class WildPath(BasePath):
                         self[1:]._del_in(obj[index])
                 else:
                     self[1:]._del_in(getattr(obj, key))
-
 
 
 if __name__ == "__main__":
