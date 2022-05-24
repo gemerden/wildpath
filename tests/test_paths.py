@@ -441,6 +441,10 @@ class TestWildPath(TestBase):
         path = WildPath("*.c.sub")
         self.assertEqual(path.call_in(obj, 2, y=1), [1, 1])
 
+    def test_default(self):
+        assert WildPath('a').get_in({}, default='x') == 'x'
+        assert WildPath('a.b').get_in({}, default='x') == 'x'
+
 
 
 class TestIterators(TestBase):

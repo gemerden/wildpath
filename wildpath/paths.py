@@ -274,8 +274,8 @@ class WildPath(BasePath):
                     obj_dict = get_object_dict(obj)
                     return {k: self[1:]._get_in(obj_dict[k], default) for k in preprocessed[key](*obj_dict)}
         else:
-            if len(self) == 1:
-                try:
+            try:
+                if len(self) == 1:
                     if isinstance(obj, Mapping):
                         return obj[key]
                     elif isinstance(obj, Sequence):
@@ -287,22 +287,22 @@ class WildPath(BasePath):
                             return obj[index]
                     else:
                         return getattr(obj, key)
-                except (KeyError, IndexError, AttributeError):
-                    if default is _marker:
-                        raise
-                    return default
-            else:
-                if isinstance(obj, Mapping):
-                    return self[1:]._get_in(obj[key], default)
-                elif isinstance(obj, Sequence):
-                    try:
-                        index = int(key)
-                    except ValueError:
-                        return self[1:]._get_in(getattr(obj, key), default)
-                    else:
-                        return self[1:]._get_in(obj[index], default)
                 else:
-                    return self[1:]._get_in(getattr(obj, key), default)
+                    if isinstance(obj, Mapping):
+                        return self[1:]._get_in(obj[key], default)
+                    elif isinstance(obj, Sequence):
+                        try:
+                            index = int(key)
+                        except ValueError:
+                            return self[1:]._get_in(getattr(obj, key), default)
+                        else:
+                            return self[1:]._get_in(obj[index], default)
+                    else:
+                        return self[1:]._get_in(getattr(obj, key), default)
+            except (KeyError, IndexError, AttributeError):
+                if default is _marker:
+                    raise
+                return default
 
     def _set_in(self, obj, value, get_object_dict=_get_object_dict,
                 get_with_key=_get_with_key,  # speed up function access
